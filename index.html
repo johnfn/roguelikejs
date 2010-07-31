@@ -1,5 +1,6 @@
 <!-- <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"> </script> -->
 <script type="Text/javascript" src="jquery.js"> </script>
+<script type="Text/javascript" src="http://davidbau.com/encode/seedrandom-min.js"> </script>
 <style>
     div.cn{ font-family:"Courier New"; }
 </style>
@@ -13,7 +14,6 @@
 <div id="helper" class="cn">H for <b>H</b>alp.</div> 
 <br />
 <div id="debugger" class="cn">H for <b>H</b>alp.</div> 
-
 
 <script type="text/javascript">
 
@@ -63,6 +63,8 @@ $(document).ready(function(){
                [".","#",".",".",".",".",".",".",".","."],
                [".",".",".",".",".",".",".",".","#","."]];
 
+    Math.seedrandom("o"); //HAPPY DAYS
+
     $(document).keydown (
         function(event){
             console.log(event.which);
@@ -96,7 +98,6 @@ $(document).ready(function(){
         var rooms = [];
         var loops = 0; //WRONG, used for debugging only
         for (var i=0;i<roomn;i++){
-            console.log(i);
             var newr = {w: 10}; //rnd(10,15)};
             newr.h = newr.w;
             var good = false;
@@ -105,8 +106,8 @@ $(document).ready(function(){
                 ++loops;
                 if (loops>100) break; //give up!
                 good = true;
-                newr.x = rnd(0,size);
-                newr.y = rnd(0,size);
+                newr.x = rnd(0,size - newr.w);
+                newr.y = rnd(0,size - newr.h);
                 for (var j=0;j<rooms.length;j++){
                     if (abs(newr.x - rooms[j].x) > 10 ||
                         abs(newr.y - rooms[j].y) > 10) continue;
@@ -124,6 +125,42 @@ $(document).ready(function(){
                 }
             }
         }
+        var connectedrooms = [rooms[0]];
+        //create a minimum spanning tree of dungeon rooms (LOL) 
+        while (rooms.length > 0) { 
+            //find closest room to rooms already connected
+            var ldi = 99999999;
+            var start = stop = -1;
+            //we say we have already considered the first i rooms
+            for (var j=0;j<connectedrooms.length;j++){ 
+                for (var k=0;k<rooms.length;k++){
+                    var dist = Math.abs(connectedrooms[j].x - rooms[k].x) + 
+                               Math.abs(connectedrooms[j].y - rooms[k].y) ;
+                    if (dist < ldi){
+                        ldi = dist;
+                        start = j;
+                        stop = k;
+                    }
+                }
+            }
+            //connect connectedrooms[start] to rooms[stop]
+            var sx = connectedrooms[start].x, sy = connectedrooms[start].y;
+            var ex = rooms[stop].x, ey = rooms[stop].y;
+
+            sx = min(sx, 99);
+            sy = min(sy, 99);
+
+            ex = min(ex, 99);
+            ey = min(ey, 99);
+            var temp;
+
+            while (sx != ex){ sx += (sx>ex)?-1:1 ; dungeon[sx][sy] = ".";}
+            while (sy != ey){ sy += (sy>ey)?-1:1 ; dungeon[sx][sy] = ".";} //:)
+
+            connectedrooms.push(rooms.splice(stop, 1)[0]);
+        }
+
+
         $("#debugger").html(dungeon.join("<br\>"));
         //choose random rooms to place > and < 
 
@@ -282,7 +319,7 @@ $(document).ready(function(){
 
         var change = false;
         for (i in actionkeys){
-            change = change || keys[actionkeys[i]]; 
+            change |= keys[actionkeys[i]]; 
         }
         return change;
     }
