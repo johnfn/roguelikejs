@@ -1,0 +1,7 @@
+Hello world!
+
+This is a rougelike written in JS in hopefully 10k lines of 
+minified code. Wish me luck.
+
+I will keep the full, (slightly more) beautiful version here,
+along with some tests to reduce filesize.

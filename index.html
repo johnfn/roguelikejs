@@ -1,0 +1,416 @@
+<!-- <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"> </script> -->
+<script type="Text/javascript" src="jquery.js"> </script>
+<style>
+    div.cn{ font-family:"Courier New"; }
+</style>
+
+<div id="board" class="cn"> </div>
+<br />
+<div id="status" class="cn"> <br/>^<br/>^<br/>^<br/>     </div>
+<br />
+<div id="hlth" class="cn"> </div>
+<br />
+<div id="helper" class="cn">H for <b>H</b>alp.</div> 
+<br />
+<div id="debugger" class="cn">H for <b>H</b>alp.</div> 
+
+
+<script type="text/javascript">
+
+//10672-->9737
+
+$(document).ready(function(){
+    var itemreps = { "weapon" : "w", 
+                     "potion" : "p",
+                     "armor"  : "a",
+                     //"book"   : "B", Potential 'easter egg' item (when you try to read it, you get a message that informs you that you are illiterate.)
+    };
+    var descriptors = ["awesome", "cool", "decent", "lame", "noobesque", "Epic", "Cursed", ""];
+    //Note to self - first ones could be highest probability, etc.
+    //That would stave off the probability of getting like 20 pokey things in a row
+    var typedescriptions = { "w" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "long pokey thing"],
+                             "p" : ["vial", "potion", "tonic"],
+                             "a" : ["chestplate", "helmet", "legplate", "pair of boots"] , //Further note to self. Only one of these may be equipped at a time.
+    };
+    var finaldescriptors = { "w" : ["of Glory", "of Truth", "of bone", "made out of cats", "of Light", "of Power", "of purity", "of steel", "of bronze", "of iron"],
+                             "p" : ["of Healing"], //uhm... h..m...
+                             "a" : ["of iron", "of steel", "of bone", "of Mythril", "of Light", "of kittenfur"] //If your weapon and armor match up, cool stuff happen(zorz)
+    };
+
+    var keys = []; for (var i=0;i<=255;i++) keys[i] = false;
+    var offkeys = [];
+
+    var actionkeys = [37, 38, 39, 40, 80]; //note to self, use WASD eventually hur 80--pickup
+    var dx = [1,0,-1,0,1,1,-1,-1];
+    var dy = [0,1,0,-1,1,-1,1,-1];
+    var sz = 10;
+    var curlevel = 0;
+    var monsters = [];
+    var items = [];
+    var inventory = [];
+    var showInventory = snark = false;
+    var moves = money = 0;
+    var statschange = false; //true;
+    var statpoints = 15;
+    var map = [[".",".",".",".",".",".",".",".",".","."],
+               [".",".",".",".",".",".",".",".",".","."],
+               [".",".",".",".","#",".",".",".",".","."],
+               [".",".",".",".",".",".",".",".",".","."],
+               [".",".",".",".",".",".",".",".",".","."],
+               [".",".",".",".",".",".",".",".",".","#"],
+               [".",".",".",".",".",".",".",".",".","."],
+               [".",".",".",".",".",".",".",".",".","."],
+               [".","#",".",".",".",".",".",".",".","."],
+               [".",".",".",".",".",".",".",".","#","."]];
+
+    $(document).keydown (
+        function(event){
+            console.log(event.which);
+            keys[event.which]=true;
+        }
+    );
+    $(document).keyup (
+        function(event){
+            keys[event.which]=false;
+            offkeys[event.which]=true;
+        }
+    );
+
+    function rnd(l, h){ return l + Math.floor( Math.random() * (h-l));}
+    function intersect(a, b){ return a.x == b.x && a.y == b.y; }
+    function max(x,y){return x>y?x:y}
+    function min(x,y){return x>y?y:x}
+    function abs(x){return x>0?x:-x}
+    function pdbg(x){$("#debugger").html($("#debugger").html() + "<br/>" + x)}
+
+    function generateLevel(l){
+        var size = 100;
+        var dungeon = [];
+        for (var i=0;i<size;i++){
+            dungeon.push([]);
+            for (var j=0;j<size;j++){
+                dungeon[i].push("#");
+            }
+        }
+        var roomn = 16;//rnd(15, 35);
+        var rooms = [];
+        var loops = 0; //WRONG, used for debugging only
+        for (var i=0;i<roomn;i++){
+            console.log(i);
+            var newr = {w: 10}; //rnd(10,15)};
+            newr.h = newr.w;
+            var good = false;
+            while (!good){
+                
+                ++loops;
+                if (loops>100) break; //give up!
+                good = true;
+                newr.x = rnd(0,size);
+                newr.y = rnd(0,size);
+                for (var j=0;j<rooms.length;j++){
+                    if (abs(newr.x - rooms[j].x) > 10 ||
+                        abs(newr.y - rooms[j].y) > 10) continue;
+                    good = false; break;
+                }
+            }
+            rooms.push(newr);
+        }
+
+        for (var i=0;i<rooms.length;i++){
+            for (var j=0;j<rooms[i].w;j++){ 
+                for (var k=0;k<rooms[i].h;k++){ 
+                    if (rooms[i].x +j >= size || rooms[i].y+k >= size) continue;
+                    dungeon[rooms[i].x+j][rooms[i].y+k] = ".";
+                }
+            }
+        }
+        $("#debugger").html(dungeon.join("<br\>"));
+        //choose random rooms to place > and < 
+
+        //place items
+
+        //write the rooms into the dungeon
+    }
+    generateLevel(4);
+
+    var gameLoop = function(){
+        var oldPosition = {x : Character.x, y : Character.y } ; 
+        var action = false;
+
+        if (statschange) { 
+            $("#board").html("Adjust your stats: Press the button in () to change. <br/>" + 
+                    "(A/a)gility :" + Character.AGL + "<br/>" + 
+                    "(S/s)trength:" + Character.STR + "<br/>" + 
+                    "(D/d)efense:" + Character.DEF + "<br/>" + 
+                    "(C/c)onstitution:" + Character.CON + "<br/>" + "");
+
+            clearStatus();
+            writeStatus( statpoints + " points left.");
+            if (keys[65]) Character.AGL++;
+            if (keys[83]) Character.STR++;
+            if (keys[67]) Character.CON++;
+            if (keys[69]) Character.DEF++;
+            statpoints -= keys[65] + keys[83] + keys[67] + keys[69];
+            if (statpoints <= 0 ){statschange = false; writeBoard(); } 
+            return;
+        }
+        if (showInventory){
+            getInventoryKeys(); 
+            Inventory.write();
+            if (!showInventory) writeBoard();
+        } else {
+            if (getKeys()) { 
+                moves++;
+                for (i in monsters) monsters[i].update(oldPosition);
+                
+                for (i in items){
+                    if (intersect(Character, items[i])){
+                         writeStatus("A " + items[i].fullname + " rolls under your feet.");
+                    }
+                }
+                if (map[Character.x][Character.y] == "#") { Character.x = oldPosition.x; Character.y = oldPosition.y; writeStatus("You stupidly run into a rock.");} 
+                writeBoard();
+            }
+        }
+        writeGeneric();
+    }
+
+    function writeGeneric(){
+        $("#hlth").html("<b>HP: " + Character.health + "/" + Character.maxhealth + " STR: " + Character.STR + " DEF: " + Character.DEF + " CON: " + Character.CON + " AGL: " + Character.AGL + "</b>");
+    }
+
+
+    function writeStatus(status){
+        //bold top status
+        var ar = $("#status").html().split("^");
+        ar.splice(0,0, status + "<br/>"); 
+        ar = ar.slice(0,4);
+        $("#status").html( ar.join("^") );
+    }
+    function clearStatus(){ $("#status").html(""); } 
+
+    function initialize(){
+        var m = new Monster(2, 2);
+        monsters.push(m);
+        var i = new Item(2, 5, "w");
+        items.push(i);
+        var r = new Item(4, 5, "a");
+        items.push(r);
+
+        setInterval(gameLoop,90);
+        writeBoard();
+    }
+    function bound(x){
+        return min ( max(x, 0) , sz) ;
+    }
+
+    function writeBoard(){
+        var text = [];
+        var html = "";
+
+        /* for (var i=0;i<sz;i++) { 
+            text.push([]); 
+            for (var j=0;j<sz;j++) { 
+                text[i].push(".");
+            } 
+        }  */
+        text = jQuery.extend(true, {}, map);
+
+        for (i in items) text[items[i].x][items[i].y] = items[i].cls;
+
+        for (i in monsters) text[monsters[i].x][monsters[i].y] = monsters[i].rep;
+
+        text[Character.x][Character.y] = Character.rep;
+
+        for (var i=0;i<sz;i++) html += text[i].join("") + "<br/>";
+
+        $("#board").html(html);
+    }
+
+
+    function pickupItem(){
+        //interesting case when there are multiple items
+        var pick = false;
+        for (i in items){
+            if (intersect(items[i], Character)){
+                items[i].pickedup = true;
+                inventory.push(items[i]);
+                items.splice(i, 1);
+                writeStatus("You pick an item up off the ground.");
+                pick = true;
+            }
+        }
+        if (!pick) {
+            writeStatus("You swing your arms hopelessly at the ground, trying to find something.");
+        }
+    }
+
+    function getInventoryKeys(){
+        Inventory.sel += keys[40] - keys[38];
+        //if (keys[13))  //TODO
+
+        Inventory.sel = max(0, min ( inventory.length - 1, Inventory.sel));
+        if (keys[73]) //(I)nventory
+            showInventory = false;
+    }
+
+
+    function getKeys(){
+        Character.x += keys[40] - keys[38];
+        Character.y += keys[39] - keys[37];
+
+        if (keys[83]) //(S)TATUS
+            writeStatus("You have " + Character.health + "/" + Character.maxhealth + " health.<br> You have been playing for " + moves + " moves.");
+
+        if (keys[80]) //(P)ick up
+            pickupItem();
+
+        if (keys[73]) //(I)nventory
+        {
+            writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place.");
+            showInventory = true;
+        }
+
+        if (keys[72] && snark) //(H)ELP
+            {writeStatus("Fine then. (S)tatus (H)elp (I)nventory (P)ick-up Insta(W)in");}
+
+        if (keys[72] && !snark) //(H)ELP
+            {snark = true; writeStatus("What, you don't know how to play a roguelike?"); }
+
+        if (keys[87]) //insta(W)in
+            writeStatus("Nice try. Too bad life isn't that easy.");
+
+        var change = false;
+        for (i in actionkeys){
+            change = change || keys[actionkeys[i]]; 
+        }
+        return change;
+    }
+
+
+    function Item(x, y, classification){
+        this.x=x;
+        this.y=y;
+        this.rep = itemreps[classification];
+        this.cls = classification;
+        this.identified = false;
+        this.pickedup = false;
+        this.fullname = "";
+        this.equipped = false;
+        this.spec = {}; 
+        this.init = function() { 
+            if (this.cls in typedescriptions){
+                this.fullname = descriptors[rnd(0, descriptors.length)] + " " +  
+                                typedescriptions[this.cls][rnd(0, typedescriptions[this.cls].length)] + " " +  
+                                finaldescriptors[this.cls][rnd(0, finaldescriptors[this.cls].length)] ; 
+            }
+            if (this.cls == "w"){
+                //x to y damage
+                //+N to strength
+            }
+            if (this.cls == "p"){
+                this.spec["HP"] = rnd( curlevel*2, (curlevel+3)*6);
+            }
+        }
+        this.use = function() {
+            if (this.cls == "p"){
+                Character.health += this.spec["HP"];
+                return true; //destroy
+            }
+        }
+        this.init(); 
+    }
+
+    function Monster(x, y) { 
+        this.rep = "M";
+        this.seeking = false;
+        this.x = x;
+        this.y = y;
+        this.STR = 3;
+        this.dmgvar = 3;
+        this.AGL = 3;
+        this.health = 20;
+        this.maxhealth = 20;
+        this.update = function(oldPosition) {
+            if (intersect(this, Character)) {
+                //CHECK DEATH (both) -- maybe do that later...
+                this.health -= Character.dealdmg();
+                if (this.health > 0 || this.AGL > Character.AGL){
+                    Character.health -= this.dealdmg();
+                    writeStatus("Holy crap! That looked painful!");
+                }
+                if (this.health < 0){ 
+                    writeStatus("Holy crap! The monster explodes in a huge explosion of blood! It's really gross!");
+                    this.remove();
+                }
+                Character.updatechar();
+
+                Character.x = oldPosition.x;
+                Character.y = oldPosition.y;
+            } else { 
+                var dir = rnd(0,8);
+                var oldPosition = {x : this.x, y: this.y} ; 
+
+                this.x += dx[dir];
+                this.y += dy[dir];
+                this.x = bound(this.x);
+                this.y = bound(this.y);
+                if (map[this.x][this.y] == "#") { this.x = oldPosition.x; this.y = oldPosition.y;} 
+            }
+        }; 
+        this.dealdmg = function() { 
+            return rnd(this.STR, this.dmgvar);
+        };
+        this.remove = function() { 
+            for (i in monsters){
+                if (monsters[i] == this){
+                    monsters.splice(i, 1);
+                }
+            }
+        }
+    }; 
+
+    var Character = { 
+        x : 5,
+        y : 5,
+        health : 100,
+        maxhealth : 100,
+        rep : "@",
+        dmgvar : 3, 
+        AGL : 4,
+        CON : 10,
+        STR : 4,
+        DEF : 4,
+        LVL : 1,
+        dealdmg : function() { 
+            return rnd(this.STR, this.dmgvar);
+        }, 
+        updatechar : function() { 
+            if (this.health == this.maxhealth) this.rep = "@"; 
+            else this.rep = (this.health / this.maxhealth).toString()[2]; //Possible bug when YOU ARE DEAD
+        },
+    };
+
+
+    var Inventory = { 
+        sel : 0,
+        items : [], 
+        write : function () {
+            var inv = ""; 
+            for (i in inventory){
+                inv += (this.sel==i ? "*" : "-") +  "1x " + inventory[i].fullname + (inventory[i].equipped ? "[equipped]" : "") +  "<br />";
+            }
+            if (inventory.length == 0) inv = "Dust. <br />"
+            for (var i=0;i<max(sz - inventory.length , 0);i++) inv += "- <br />" 
+
+            $("#board").html(inv);
+        }, 
+
+    };
+
+    initialize(); 
+
+});
+
+</script>
+
