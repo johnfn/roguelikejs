@@ -1,6 +1,6 @@
 <!-- <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"> </script> -->
 <script type="Text/javascript" src="jquery.js"> </script>
-<script type="Text/javascript" src="http://davidbau.com/encode/seedrandom-min.js"> </script>
+<script type="Text/javascript" src="seedrandom.js"> </script>
 <style>
     div.cn{ font-family:"Courier New"; }
 </style>
@@ -40,6 +40,8 @@ $(document).ready(function(){
     var keys = []; for (var i=0;i<=255;i++) keys[i] = false;
     var offkeys = [];
 
+    Math.seedrandom("g");
+
     var actionkeys = [37, 38, 39, 40, 80]; //note to self, use WASD eventually hur 80--pickup
     var dx = [1,0,-1,0,1,1,-1,-1];
     var dy = [0,1,0,-1,1,-1,1,-1];
@@ -52,19 +54,11 @@ $(document).ready(function(){
     var moves = money = 0;
     var statschange = false; //true;
     var statpoints = 15;
-    var map = [[".",".",".",".",".",".",".",".",".","."],
-               [".",".",".",".",".",".",".",".",".","."],
-               [".",".",".",".","#",".",".",".",".","."],
-               [".",".",".",".",".",".",".",".",".","."],
-               [".",".",".",".",".",".",".",".",".","."],
-               [".",".",".",".",".",".",".",".",".","#"],
-               [".",".",".",".",".",".",".",".",".","."],
-               [".",".",".",".",".",".",".",".",".","."],
-               [".","#",".",".",".",".",".",".",".","."],
-               [".",".",".",".",".",".",".",".","#","."]];
+    var curleveldata = generateLevel(4);
+    var map = curleveldata["map"];
+    var screenX = screenY = 0;
 
-    Math.seedrandom("o"); //HAPPY DAYS
-
+    
     $(document).keydown (
         function(event){
             console.log(event.which);
@@ -161,14 +155,15 @@ $(document).ready(function(){
         }
 
 
-        $("#debugger").html(dungeon.join("<br\>"));
+        return {"map": dungeon, startr : rooms[0]};
+        //$("#debugger").html(dungeon.join("<br\>"));
+
         //choose random rooms to place > and < 
 
         //place items
 
         //write the rooms into the dungeon
     }
-    generateLevel(4);
 
     var gameLoop = function(){
         var oldPosition = {x : Character.x, y : Character.y } ; 
@@ -206,6 +201,8 @@ $(document).ready(function(){
                     }
                 }
                 if (map[Character.x][Character.y] == "#") { Character.x = oldPosition.x; Character.y = oldPosition.y; writeStatus("You stupidly run into a rock.");} 
+                screenX = max(0, Character.x - sz/2);
+                screenY = max(0, Character.y - sz/2);
                 writeBoard();
             }
         }
@@ -240,24 +237,28 @@ $(document).ready(function(){
     function bound(x){
         return min ( max(x, 0) , sz) ;
     }
+    function bounded(x){
+        return x>=0 && x<sz;
+    }
 
     function writeBoard(){
         var text = [];
         var html = "";
 
-        /* for (var i=0;i<sz;i++) { 
+        for (var i=0;i<sz;i++) { 
             text.push([]); 
             for (var j=0;j<sz;j++) { 
-                text[i].push(".");
+                text[i].push(map[i+screenX][j+screenY]);
             } 
-        }  */
-        text = jQuery.extend(true, {}, map);
+        }  
+        //text = jQuery.extend(true, {}, map);
+        
 
-        for (i in items) text[items[i].x][items[i].y] = items[i].cls;
+        for (i in items) if(bounded(items[i].x - screenX) && bounded(items[i].y - screenY)) text[items[i].x - screenX][items[i].y - screenY] = items[i].cls;
 
-        for (i in monsters) text[monsters[i].x][monsters[i].y] = monsters[i].rep;
+        for (i in monsters) if(bounded(monsters[i].x - screenX) && bounded(monsters[i].y - screenY)) text[monsters[i].x - screenX][monsters[i].y - screenY] = monsters[i].rep;
 
-        text[Character.x][Character.y] = Character.rep;
+        text[Character.x - screenX][Character.y - screenY] = Character.rep;
 
         for (var i=0;i<sz;i++) html += text[i].join("") + "<br/>";
 
@@ -409,7 +410,7 @@ $(document).ready(function(){
 
     var Character = { 
         x : 5,
-        y : 5,
+        y : 8,
         health : 100,
         maxhealth : 100,
         rep : "@",
@@ -445,6 +446,9 @@ $(document).ready(function(){
 
     };
 
+    screenX = max(0, Character.x - sz/2);
+    screenY = max(0, Character.y - sz/2);
+    console.log(screenX, screenY);
     initialize(); 
 
 });
