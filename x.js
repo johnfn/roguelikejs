@@ -40,6 +40,7 @@ $(document).ready(function(){
     var statpoints = 15;
     var scrn = {x:0, y:0};
     var screenX = screenY = curlevel= 0;
+    var size;
     var t;
 
     $(document).keydown (
@@ -68,7 +69,7 @@ $(document).ready(function(){
 
     function generateLevel(l){
         curlevel = l;
-        var size = 50*rsp(l,max(l*2, 50));
+        size = 25* rsp(2,min(l/2+1,16));//TODO: consider boundaries harder
         var dungeon = [];
 
          for (t=0;t<size;t++){
@@ -77,7 +78,7 @@ $(document).ready(function(){
                 dungeon[t].push("#");
             }
         } 
-        var roomn = rsp(7, 10*rnd(1,l));
+        var roomn = rsp(7*size/40, 13*size/40);
         var rooms = [];
         var mitems = [];
         var mmonsters = [];
@@ -87,13 +88,13 @@ $(document).ready(function(){
             newr.h = newr.w;
             var good = false;
             while (!good){
-                if (++loops>100) break; //TODO: this puts a theoretical limit at 100 rooms?
+                if (++loops>roomn*8) break; //TODO: this puts a theoretical limit at 100 rooms?
                 good = true;
                 newr.x = rnd(0,size - newr.w);
                 newr.y = rnd(0,size - newr.h);
                 for (j in rooms) if (abs(newr.x - rooms[j].x) < 10 && abs(newr.y - rooms[j].y) < 10) {good = false; break;}
             }
-            rooms.push(newr);
+            good && rooms.push(newr);
         }
 
         var upplace = rnd(0,roomn-1);
@@ -132,8 +133,8 @@ $(document).ready(function(){
             var s={}; setxy(s, connectedrooms[start]);
             var e={}; setxy(e, rooms[stop]);
 
-            for(x in s)s[x]=min(s[x],99);
-            for(x in e)e[x]=min(e[x],99);
+            for(x in s)s[x]=min(s[x],size-1);
+            for(x in e)e[x]=min(e[x],size-1);
 
             while (s.x != e.x){ s.x += (s.x>e.x)?-1:1 ; dungeon[s.x][s.y] = "."}
             while (s.y != e.y){ s.y += (s.y>e.y)?-1:1 ; dungeon[s.x][s.y] = "."} //:)
@@ -142,19 +143,13 @@ $(document).ready(function(){
         }
 
 
-        $("#debugger").html(dungeon.join("<br\>"));
+        //$("#debugger").html(dungeon.join("<br\>"));
 
-        items = mitems;
+        items = mitems;//todo remove these in a clever way.
         monsters = mmonsters;
         map = dungeon;
 
         setxy(Character,connectedrooms[0]);
-
-        //choose random rooms to place > and < 
-
-        //place items
-
-        //write the rooms into the dungeon
     }
 
     var gameLoop = function(){
@@ -184,9 +179,9 @@ $(document).ready(function(){
         } else {
             a = getKeys();
             if (a || resting) { 
-                resting = !(a || Character.health == Character.maxhealth) 
+                resting = !(a || Character.HP == Character.maxHP) 
                 moves++;
-                Character.health += resting + (moves%REGENRATE==0 && Character.health != Character.maxhealth)
+                Character.HP += resting + (moves%REGENRATE==0 && Character.HP != Character.maxHP)
                 for (i in monsters) monsters[i].update(oldPosition);
                 
                 for (i in items){
@@ -202,8 +197,8 @@ $(document).ready(function(){
                 }
                 if (map[Character.x][Character.y] == ">") {writeStatus("You see stairs leading downward.");}
                 if (map[Character.x][Character.y] == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
-                screenX = min( max(0, Character.x - sz/2), 100 - sz );
-                screenY = min( max(0, Character.y - sz/2), 100 - sz);
+                screenX = min( max(0, Character.x - sz/2), size - sz );
+                screenY = min( max(0, Character.y - sz/2), size - sz);
                 writeBoard();
             }
         }
@@ -211,7 +206,7 @@ $(document).ready(function(){
     }
 
     function writeGeneric(){
-        $("#hlth").html("<b>HP: " + Character.health + "/" + Character.maxhealth + " LVL: " + Character.LVL + " $: " + money + " DMG: " + Character.DMG + "-" + Character.DMX +  "<br/>"+ " EXP: " + Character.EXP + "/" + Character.NXT + " STR: " + Character.STR + " DEF: " + Character.DEF + " CON: " + Character.CON + " AGL: " + Character.AGL + "</b>");
+        $("#hlth").html("<b>HP: " + Character.HP + "/" + Character.maxHP + " LVL: " + Character.LVL + " $: " + money + " DMG: " + Character.DMG + "-" + Character.DMX +  "<br/>"+ " EXP: " + Character.EXP + "/" + Character.NXT + " STR: " + Character.STR + " DEF: " + Character.DEF + " CON: " + Character.CON + " AGL: " + Character.AGL + "</b>");
     }
 
 
@@ -241,9 +236,8 @@ $(document).ready(function(){
 
         for (var i=0;i<sz;i++) { 
             text.push([]); 
-            for (var j=0;j<sz;j++) { 
-                text[i].push(map[i+screenX][j+screenY]);
-            } 
+            for (var j=0;j<sz;j++) text[i].push(map[i+screenX][j+screenY]);
+            
         }  
 
         for (i in items) if(bounded(items[i].x - screenX) && bounded(items[i].y - screenY)) text[items[i].x - screenX][items[i].y - screenY] = items[i].cls;
@@ -271,7 +265,7 @@ $(document).ready(function(){
         writeStatus("You swing your arms hopelessly at the ground, trying to find something.");
     }
 
-    var m = {//83:function(){writeStatus("You have " + Character.health + "/" + Character.maxhealth + " health.<br> You have been playing for " + moves + " moves.")},
+    var m = {//83:function(){writeStatus("You have " + Character.HP + "/" + Character.maxHP + " HP.<br> You have been playing for " + moves + " moves.")},
         80:pickupItem,
         82:function(){writeStatus("You take a quick nap."); resting = true;},
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. (E)xamine. Enter to use.");showInventory = true;},
@@ -358,16 +352,26 @@ $(document).ready(function(){
         this.use = function() {
             var r;
             if (this.equipped) { 
-                Character.health += this.spec["HP"] != null ? this.spec["HP"] : 0;
+                for (x in this.spec){
+                    Character[x] += this.spec[x] != null ? this.spec[x] : 0;
+                }
+                /*
+                Character.HP += this.spec["HP"] != null ? this.spec["HP"] : 0;
                 Character.DMG += this.spec["DMG"] != null ? this.spec["DMG"] : 0;
                 Character.DMX += this.spec["DMX"] != null ? this.spec["DMX"] : 0;
-                Character.health > Character.maxhealth ? Character.health = Character.maxhealth : 0;
+                Character.HP > Character.maxHP ? Character.HP = Character.maxHP : 0;
+                */
 
                 if (this.cls=="p") writeStatus("You drink the potion. Yummy! +" + this.spec["HP"] + "HP");
                 if (this.cls=="w") writeStatus("You wield the weapon. You can't wait to pwn some noobs.");
             } else { 
+                for (x in this.spec){
+                    Character[x] -= this.spec[x] != null ? this.spec[x] : 0;
+                }
+                /*
                 Character.DMG -= this.spec["DMG"] != null ? this.spec["DMG"] : 0;
                 Character.DMX -= this.spec["DMX"] != null ? this.spec["DMX"] : 0;
+                */
                 if (this.cls=="w") writeStatus("You unwield the weapon. Time for good old fisticuffs.");
             }
 
@@ -385,21 +389,21 @@ $(document).ready(function(){
         this.STR = rnd(l+1,l*2+1) ;
         this.DMX = 3;
         this.AGL = 3;
-        this.health = 5*(rnd(l+1, l*3)) ;
-        this.maxhealth = this.health;
+        this.HP = 5*(rnd(l*3, l*9)) ;
+        this.maxHP = this.HP;
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
                 //CHECK DEATH (both) -- maybe do that later...
                 var d = dodmg(Character);
-                this.health -= d;
+                this.HP -= d;
                 writeStatus("You deal " + d + " damage");
-                if (this.health > 0 || this.AGL > Character.AGL){
-                    Character.health -= dodmg(this);
+                if (this.HP > 0 || this.AGL > Character.AGL){
+                    Character.HP -= dodmg(this);
                     writeStatus("Holy crap! That looked painful!");
                 }
-                if (this.health < 0){ 
+                if (this.HP < 0){ 
                     writeStatus("Holy crap! The monster explodes in a huge explosion of blood! It's really gross!");
-                    Character.EXP += Math.floor(this.STR * this.maxhealth / 12);
+                    Character.EXP += Math.floor(this.STR * this.maxHP / 12);
                     if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.");}
 
                     for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
@@ -414,7 +418,7 @@ $(document).ready(function(){
                 this.y += dy[dir];
                 if (map[this.x][this.y] == "#") setxy(this, op) 
                 if (intersect(this, Character)) {
-                    Character.health -= dodmg(this);
+                    Character.HP -= dodmg(this);
                     writeStatus("Holy crap! That looked painful!");
                     setxy(this, op) 
                 }
@@ -425,8 +429,8 @@ $(document).ready(function(){
     var Character = { 
         x : 5,
         y : 8,
-        health : 100,
-        maxhealth : 100,
+        HP : 100,
+        maxHP : 100,
         rep : "@",
         DMG : 2, 
         DMX : 5, 
@@ -438,7 +442,7 @@ $(document).ready(function(){
         DEF : 4,
         LVL : 1,
         updatechar : function() { 
-            (this.health == this.maxhealth) ? this.rep = "@" : this.rep = (this.health / this.maxhealth).toString()[2]; //Possible bug when YOU ARE DEAD
+            (this.HP == this.maxHP) ? this.rep = "@" : this.rep = (this.HP / this.maxHP).toString()[2]; //Possible bug when YOU ARE DEAD
         },
     };
 
@@ -459,8 +463,8 @@ $(document).ready(function(){
     };
 
     generateLevel(1);
-    screenX = min( max(0, Character.x - sz/2), 100 - sz );
-    screenY = min( max(0, Character.y - sz/2), 100 - sz);
+    screenX = min( max(0, Character.x - sz/2), size - sz );
+    screenY = min( max(0, Character.y - sz/2), size - sz);
     initialize(); 
 
 });
