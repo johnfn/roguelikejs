@@ -5,6 +5,11 @@ $(document).ready(function(){
 //16306-->15861 (7528 packed)
 //15861-->15803 (7507 packed)
 
+    var kOff = { 
+        ks : [],
+        st : function(x) { this.ks[x]=true },
+        gt : function(x) { var v = this.ks[x]; this.ks[x] = false; return v; },
+    };
     var descriptors = ["awesome", "cool", "decent", "lame", "noobesque", "Epic", "Cursed", ""];
     //Note to self - first ones could be highest probability, etc.
     //That would stave off the probability of getting like 20 pokey things in a row
@@ -18,42 +23,41 @@ $(document).ready(function(){
     };
 
     var keys = []; for (var i=0;i<=255;i++) keys[i] = false;
-    var offkeys = [];
 
-
-    var actionkeys = [37, 38, 39, 40, 80]; //note to self, use WASD eventually hur 80--pickup
+    var stairup = stairdown = {x:0, y:0};
+    var actionkeys = [65, 87, 68, 83, 80]; //note to self, use WASD eventually hur 80--pickup
     var dx = [1,0,-1,0,1,1,-1,-1];
     var dy = [0,1,0,-1,1,-1,1,-1];
-    var sz = 10;
+    var sz = 16;
+    var map = [];
     var REGENRATE=25;
     var monsters = [];
     var items = [];
     var inventory = [];
-    var showInventory = snark = false;
+    var showInventory = snark = resting = false;
     var moves = money = 0;
     var statschange = false; //true;
     var statpoints = 15;
     var scrn = {x:0, y:0};
     var screenX = screenY = curlevel= 0;
-    var resting = false;
     var t;
 
-    
     $(document).keydown (
-        function(event){
-            console.log(event.which);
-            keys[event.which]=true;
+        function(e){
+            console.log(e.which);
+            keys[e.which]=true;
         }
     );
     $(document).keyup (
-        function(event){
-            t = event.which;
+        function(e){
+            t = e.which;
             keys[t]=false;
-            offkeys[t]=true;
+            kOff.st(t);
         }
     );
 
     function rnd(l, h){ return l + Math.floor( Math.random() * (h-l));}
+    function rsp(l, h){ return l + Math.floor( Math.random() * (h));}
     function intersect(a, b){ return a.x == b.x && a.y == b.y; }
     function max(x,y){return x>y?x:y}
     function min(x,y){return x>y?y:x}
@@ -63,7 +67,8 @@ $(document).ready(function(){
     function dodmg(a){return rnd(a.STR, a.DMX)}
 
     function generateLevel(l){
-        var size = 100;
+        curlevel = l;
+        var size = 50*rsp(l,max(l*2, 50));
         var dungeon = [];
 
          for (t=0;t<size;t++){
@@ -72,7 +77,7 @@ $(document).ready(function(){
                 dungeon[t].push("#");
             }
         } 
-        var roomn = 16;//rnd(15, 35);
+        var roomn = rsp(7, 10*rnd(1,l));
         var rooms = [];
         var mitems = [];
         var mmonsters = [];
@@ -82,7 +87,7 @@ $(document).ready(function(){
             newr.h = newr.w;
             var good = false;
             while (!good){
-                if (++loops>100) break; //give up!
+                if (++loops>100) break; //TODO: this puts a theoretical limit at 100 rooms?
                 good = true;
                 newr.x = rnd(0,size - newr.w);
                 newr.y = rnd(0,size - newr.h);
@@ -91,16 +96,20 @@ $(document).ready(function(){
             rooms.push(newr);
         }
 
+        var upplace = rnd(0,roomn-1);
+        var downplace = rnd(0,roomn-1); while(downplace == upplace) downplace = rnd(0,roomn-1);
         for (i in rooms){
             for (var j=0;j<rooms[i].w;j++){ 
                 for (var k=0;k<rooms[i].h;k++){ 
                     var tx = rooms[i].x + j, ty = rooms[i].y + k;
                     if (tx >= size || ty >= size) continue;
-                    if (rnd(0,800) <19) { mitems.push(new Item(tx, ty)) } 
-                    if (rnd(0,400) < 2) { mmonsters.push(new Monster(tx, ty, l)) } 
+                    if (rnd(0,800) <19) mitems.push(new Item(tx, ty)) 
+                    if (rnd(0,400) < 2) mmonsters.push(new Monster(tx, ty, l)) 
                     dungeon[tx][ty] = ".";
                 }
             }
+            if (i==upplace) dungeon[rooms[i].x+3][rooms[i].y+3] = ">";
+            if (i==downplace) dungeon[rooms[i].x+3][rooms[i].y+3] = "<";
         }
         var connectedrooms = [rooms[0]];
         //create a minimum spanning tree of dungeon rooms (LOL) 
@@ -126,15 +135,20 @@ $(document).ready(function(){
             for(x in s)s[x]=min(s[x],99);
             for(x in e)e[x]=min(e[x],99);
 
-            while (s.x != e.x){ s.x += (s.x>e.x)?-1:1 ; dungeon[s.x][s.y] = ".";}
-            while (s.y != e.y){ s.y += (s.y>e.y)?-1:1 ; dungeon[s.x][s.y] = ".";} //:)
+            while (s.x != e.x){ s.x += (s.x>e.x)?-1:1 ; dungeon[s.x][s.y] = "."}
+            while (s.y != e.y){ s.y += (s.y>e.y)?-1:1 ; dungeon[s.x][s.y] = "."} //:)
 
             connectedrooms.push(rooms.splice(stop, 1)[0]);
         }
 
 
-        return {"map": dungeon, "startr" : connectedrooms[0], "items" : mitems, "monsters": mmonsters};
-        //$("#debugger").html(dungeon.join("<br\>"));
+        $("#debugger").html(dungeon.join("<br\>"));
+
+        items = mitems;
+        monsters = mmonsters;
+        map = dungeon;
+
+        setxy(Character,connectedrooms[0]);
 
         //choose random rooms to place > and < 
 
@@ -186,9 +200,10 @@ $(document).ready(function(){
                          }
                     }
                 }
+                if (map[Character.x][Character.y] == ">") {writeStatus("You see stairs leading downward.");}
                 if (map[Character.x][Character.y] == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
-                screenX = max(0, Character.x - sz/2);
-                screenY = max(0, Character.y - sz/2);
+                screenX = min( max(0, Character.x - sz/2), 100 - sz );
+                screenY = min( max(0, Character.y - sz/2), 100 - sz);
                 writeBoard();
             }
         }
@@ -256,12 +271,13 @@ $(document).ready(function(){
         writeStatus("You swing your arms hopelessly at the ground, trying to find something.");
     }
 
-    var m = {83:function(){writeStatus("You have " + Character.health + "/" + Character.maxhealth + " health.<br> You have been playing for " + moves + " moves.")},
+    var m = {//83:function(){writeStatus("You have " + Character.health + "/" + Character.maxhealth + " health.<br> You have been playing for " + moves + " moves.")},
         80:pickupItem,
         82:function(){writeStatus("You take a quick nap."); resting = true;},
-        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. (E)xamine. E(Q)uip. Enter to use.");showInventory = true;},
+        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. (E)xamine. Enter to use.");showInventory = true;},
         72:function(){if(snark)writeStatus("Fine then. (S)tatus (H)elp (I)nventory (R)est (P)ick-up Insta(W)in");else writeStatus("What, you don't know how to play a roguelike?"); snark = true;},
-        87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
+        //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
+        190:function(){if (map[Character.x][Character.y] == ">") { writeStatus("You descend the staircase into darker depths..."); generateLevel(curlevel++); writeBoard();} else {writeStatus("There's no staircase here.");} },
     };
     function itemuse(){
         inventory[Inventory.sel].equipped = !inventory[Inventory.sel].equipped;
@@ -270,23 +286,21 @@ $(document).ready(function(){
         }
     }
     function getInventoryKeys(){
-        Inventory.sel += keys[40] - keys[38];
-        if (keys[13]) itemuse();
-        if (keys[69]) writeStatus(inventory[Inventory.sel].getdetails());
-        if (keys[81]) itemuse(); 
-
+        Inventory.sel += keys[83] - keys[87];
+        if (kOff.gt(13)) itemuse();
+        if (kOff.gt(69)) writeStatus(inventory[Inventory.sel].getdetails());
 
         Inventory.sel = max(0, min ( inventory.length - 1, Inventory.sel));
-        if (keys[73]) //(I)nventory
+        if (kOff.gt(73)) //(I)nventory
             showInventory = false;
     }
 
 
     function getKeys(){
-        Character.x += keys[40] - keys[38];
-        Character.y += keys[39] - keys[37];
+        Character.x += keys[83] - keys[87];
+        Character.y += keys[68] - keys[65];
 
-        for (i in m) if (keys[i]) m[i]();
+        for (i in m) if (kOff.gt(i)) m[i]();
 
         var change = false;
         for (i in actionkeys){
@@ -386,6 +400,8 @@ $(document).ready(function(){
                 if (this.health < 0){ 
                     writeStatus("Holy crap! The monster explodes in a huge explosion of blood! It's really gross!");
                     Character.EXP += Math.floor(this.STR * this.maxhealth / 12);
+                    if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.");}
+
                     for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
                 }
 
@@ -397,6 +413,11 @@ $(document).ready(function(){
                 this.x += dx[dir];
                 this.y += dy[dir];
                 if (map[this.x][this.y] == "#") setxy(this, op) 
+                if (intersect(this, Character)) {
+                    Character.health -= dodmg(this);
+                    writeStatus("Holy crap! That looked painful!");
+                    setxy(this, op) 
+                }
             }
         }; 
     }; 
@@ -437,16 +458,9 @@ $(document).ready(function(){
 
     };
 
-    var curleveldata = generateLevel(1);
-
-    items = curleveldata["items"];
-    monsters = curleveldata["monsters"];
-    var map = curleveldata["map"];
-
-    setxy(Character,curleveldata["startr"]);
-    screenX = max(0, Character.x - sz/2);
-    screenY = max(0, Character.y - sz/2);
-    console.log(screenX, screenY);
+    generateLevel(1);
+    screenX = min( max(0, Character.x - sz/2), 100 - sz );
+    screenY = min( max(0, Character.y - sz/2), 100 - sz);
     initialize(); 
 
 });
