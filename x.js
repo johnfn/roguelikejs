@@ -8,40 +8,23 @@ $(document).ready(function(){
     var kOff = { 
         ks : [],
         st : function(x) { this.ks[x]=true },
-        gt : function(x) { var v = this.ks[x]; this.ks[x] = false; return v; },
+        gt : function(x) { var v = this.ks[x]; this.ks[x] = false; return v; }
     };
     var descriptors = ["awesome", "cool", "decent", "lame", "noobesque", "Epic", "Cursed", ""];
     //Note to self - first ones could be highest probability, etc.
     //That would stave off the probability of getting like 20 pokey things in a row
     var typedescriptions = { "w" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "long pokey thing"],
                              "p" : ["vial", "potion", "tonic"],
-                             "a" : ["chestplate", "helmet", "legplate", "pair of boots"] , //Further note to self. Only one of these may be equipped at a time.
+                             "a" : ["chestplate", "helmet", "legplate", "pair of boots"] //Further note to self. Only one of these may be equipped at a time.
     };
     var finaldescriptors = { "w" : ["of Glory", "of Truth", "of bone", "made out of cats", "of Light", "of Power", "of purity", "of steel", "of bronze", "of iron"],
                              "p" : ["of Healing"], //uhm... h..m...
                              "a" : ["of iron", "of steel", "of bone", "of Mythril", "of Light", "of kittenfur"] //If your weapon and armor match up, cool stuff happen(zorz)
     };
 
-    var keys = []; for (var i=0;i<=255;i++) keys[i] = false;
+    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83, 80], dx = [1,0,-1,0,1,1,-1,-1],dy = [0,1,0,-1,1,-1,1,-1], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = money = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t;
 
-    var stairup = stairdown = {x:0, y:0};
-    var actionkeys = [65, 87, 68, 83, 80]; //note to self, use WASD eventually hur 80--pickup
-    var dx = [1,0,-1,0,1,1,-1,-1];
-    var dy = [0,1,0,-1,1,-1,1,-1];
-    var sz = 16;
-    var map = [];
-    var REGENRATE=25;
-    var monsters = [];
-    var items = [];
-    var inventory = [];
-    var showInventory = snark = resting = false;
-    var moves = money = 0;
-    var statschange = false; //true;
-    var statpoints = 15;
-    var scrn = {x:0, y:0};
-    var screenX = screenY = curlevel= 0;
-    var size;
-    var t;
+    for (t=0;t<=255;t++) keys[t] = false;
 
     $(document).keydown (
         function(e){
@@ -57,32 +40,30 @@ $(document).ready(function(){
         }
     );
 
-    function rnd(l, h){ return l + Math.floor( Math.random() * (h-l));}
-    function rsp(l, h){ return l + Math.floor( Math.random() * (h));}
-    function intersect(a, b){ return a.x == b.x && a.y == b.y; }
+    function fgen(r,a){return (function(a){return eval(r);})} //My masterpiece  
+
+    function re(x) {return eval(x)} 
+    function rng(x) {if(!x)return[0];var zQ=rng(x-1);zQ.push(x-1);return zQ;} //Here we go...
+    function rnd(l, h){ return l + Math.floor( Math.random() * (h-l))}
+    function rsp(l, h){ return l + Math.floor( Math.random() * (h))}
+    function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function max(x,y){return x>y?x:y}
     function min(x,y){return x>y?y:x}
     function abs(x){return x>0?x:-x}
     function pdbg(x){$("#debugger").html($("#debugger").html() + "<br/>" + x)}
-    function setxy(a, b){a.x = b.x;a.y = b.y;}
-    function dodmg(a){return rnd(a.STR, a.DMX)}
+    function setxy(a, b){a.x = b.x;a.y = b.y}
+    function dodmg(a){return rnd(a.DMG, a.DMX+1)}
 
     function generateLevel(l){
         curlevel = l;
         size = 25* rsp(2,min(l/2+1,16));//TODO: consider boundaries harder
-        var dungeon = [];
+
+        var dungeon = [], roomn = rsp(7*size/40, 13*size/40),rooms = [], mitems = [] ,mmonsters = [],loops = 0; //WRONG, used for debugging only
 
          for (t=0;t<size;t++){
-            dungeon.push([]);
-            for (var j=0;j<size;j++){
-                dungeon[t].push("#");
-            }
+            dungeon.push(rng(size).map(function(){return "#"}));
+            seen.push(rng(size).map(function(){return false;}));
         } 
-        var roomn = rsp(7*size/40, 13*size/40);
-        var rooms = [];
-        var mitems = [];
-        var mmonsters = [];
-        var loops = 0; //WRONG, used for debugging only
         for (var i=0;i<roomn;i++){
             var newr = {w: rnd(10,15)};
             newr.h = newr.w;
@@ -90,8 +71,8 @@ $(document).ready(function(){
             while (!good){
                 if (++loops>roomn*8) break; //TODO: this puts a theoretical limit at 100 rooms?
                 good = true;
-                newr.x = rnd(0,size - newr.w);
-                newr.y = rnd(0,size - newr.h);
+                newr.x = rnd(1,size - newr.w);
+                newr.y = rnd(1,size - newr.h);
                 for (j in rooms) if (abs(newr.x - rooms[j].x) < 10 && abs(newr.y - rooms[j].y) < 10) {good = false; break;}
             }
             good && rooms.push(newr);
@@ -104,7 +85,7 @@ $(document).ready(function(){
                 for (var k=0;k<rooms[i].h;k++){ 
                     var tx = rooms[i].x + j, ty = rooms[i].y + k;
                     if (tx >= size || ty >= size) continue;
-                    if (rnd(0,800) <19) mitems.push(new Item(tx, ty)) 
+                    if (rnd(0,800) < 4) mitems.push(new Item(tx, ty)) 
                     if (rnd(0,400) < 2) mmonsters.push(new Monster(tx, ty, l)) 
                     dungeon[tx][ty] = ".";
                 }
@@ -136,20 +117,32 @@ $(document).ready(function(){
             for(x in s)s[x]=min(s[x],size-1);
             for(x in e)e[x]=min(e[x],size-1);
 
-            while (s.x != e.x){ s.x += (s.x>e.x)?-1:1 ; dungeon[s.x][s.y] = "."}
-            while (s.y != e.y){ s.y += (s.y>e.y)?-1:1 ; dungeon[s.x][s.y] = "."} //:)
+            while (s.x != e.x){ s.x += (s.x>e.x)?-1:1; dungeon[s.x][s.y] = "."}
+            while (s.y != e.y){ s.y += (s.y>e.y)?-1:1; dungeon[s.x][s.y] = "."} //:)
 
             connectedrooms.push(rooms.splice(stop, 1)[0]);
         }
 
 
         //$("#debugger").html(dungeon.join("<br\>"));
-
+        //pad the dungeon by md chars
+        var md=8; 
+        size += md*2;
+        var fdungeon = []; 
+        for (var i=0;i<size;i++){ 
+            fdungeon.push([""]); 
+            for (j=0;j<size;j++){ 
+                if (i-md>0 && j-md>0 && i < size-md && j < size-md) fdungeon[i] += dungeon[i-md][j-md]; else fdungeon[i] += "#";
+            }
+        }
+        for (x in mitems) { mitems[x].x +=md; mitems[x].y +=md;}
+        for (x in mmonsters) { mmonsters[x].x +=md; mmonsters[x].y +=md;}
         items = mitems;//todo remove these in a clever way.
         monsters = mmonsters;
-        map = dungeon;
 
-        setxy(Character,connectedrooms[0]);
+        map = fdungeon;
+
+        setxy(Character,{x:connectedrooms[0].x+md,y:connectedrooms[0].y+md});
     }
 
     var gameLoop = function(){
@@ -190,12 +183,10 @@ $(document).ready(function(){
                             writeStatus("You pick up some cash off the ground. Sweet.");
                             money += items[i].spec["amt"];
                             items.splice(i, 1); break;
-                         } else {
-                             writeStatus("A " + items[i].getname() + " rolls under your feet.");
-                         }
+                         } else writeStatus("A " + items[i].getname() + " rolls under your feet.");
                     }
                 }
-                if (map[Character.x][Character.y] == ">") {writeStatus("You see stairs leading downward.");}
+                if (map[Character.x][Character.y] == ">") writeStatus("You see stairs leading downward.");
                 if (map[Character.x][Character.y] == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
                 screenX = min( max(0, Character.x - sz/2), size - sz );
                 screenY = min( max(0, Character.y - sz/2), size - sz);
@@ -232,11 +223,13 @@ $(document).ready(function(){
 
     function writeBoard(){
         var text = [];
+        var vis = [];
         var html = "";
 
         for (var i=0;i<sz;i++) { 
             text.push([]); 
-            for (var j=0;j<sz;j++) text[i].push(map[i+screenX][j+screenY]);
+            vis.push([]);
+            for (var j=0;j<sz;j++) vis[i].push(" "),text[i].push(map[i+screenX][j+screenY]);
             
         }  
 
@@ -245,6 +238,37 @@ $(document).ready(function(){
         for (i in monsters) if(bounded(monsters[i].x - screenX) && bounded(monsters[i].y - screenY)) text[monsters[i].x - screenX][monsters[i].y - screenY] = monsters[i].rep;
 
         text[Character.x - screenX][Character.y - screenY] = Character.rep;
+
+        //Mark visibility
+        var x0=Character.x - screenX, y0 = Character.y - screenY;
+        var rad=6;
+
+        for (var i=x0-rad;i<=x0+rad;i++){
+            for (var j=x0-rad;j<=x0+rad;j++){
+                if (Math.round( Math.sqrt( (i-x0)*(i-x0) +(j-y0)*(j-y0))) == rad){
+                    //draw line from (x0,y0) to (i,j)
+                    var cx,cy;
+                    var nx,ny;
+                    for (var d=0;d<100;d++){
+                        cx = d * (i-x0)/100;
+                        cy = d * (j-y0)/100;
+                        nx=Math.floor(cx)+x0, ny = Math.floor(cy)+y0;
+                        if (nx>16||ny>16) continue;
+                        vis[nx][ny] = "x";
+                        seen[nx+screenX][ny+screenY] = true;
+                        if (text[nx][ny] == "#") break;
+                    }
+                }
+            }
+        }
+        
+        for (var i=0;i<sz;i++){
+            for (var j=0;j<sz;j++){
+                if (vis[i][j] != "x"){ 
+                    if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY] ;else text[i][j] = "&nbsp;";
+                }
+            }
+        } 
 
         for (i in text) html += text[i].join("") + "<br/>";
 
@@ -272,6 +296,7 @@ $(document).ready(function(){
         72:function(){if(snark)writeStatus("Fine then. (S)tatus (H)elp (I)nventory (R)est (P)ick-up Insta(W)in");else writeStatus("What, you don't know how to play a roguelike?"); snark = true;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         190:function(){if (map[Character.x][Character.y] == ">") { writeStatus("You descend the staircase into darker depths..."); generateLevel(curlevel++); writeBoard();} else {writeStatus("There's no staircase here.");} },
+        188:function(){if (map[Character.x][Character.y] == "<") { writeStatus("You ascend the staircase to safer ground."); generateLevel(curlevel--); writeBoard();} else {writeStatus("There's no staircase here.");} }
     };
     function itemuse(){
         inventory[Inventory.sel].equipped = !inventory[Inventory.sel].equipped;
@@ -319,7 +344,7 @@ $(document).ready(function(){
         }
         this.getname = function() { 
             if (this.cls in typedescriptions){
-                return this.n==""? (this.n= (this.identified ? descriptors[rnd(0, descriptors.length)] : "mysterious ") + " " +  
+                return !this.n ? (this.n= (this.identified ? descriptors[rnd(0, descriptors.length)] : "mysterious ") + " " +  
                         typedescriptions[this.cls][rnd(0, typedescriptions[this.cls].length)] + " " +  
                         (this.identified ? finaldescriptors[this.cls][rnd(0, finaldescriptors[this.cls].length)] : "")) : this.n  ; 
             }
@@ -327,14 +352,13 @@ $(document).ready(function(){
         this.init = function() { 
             if (Math.random() > .5) this.identified = true;
             
-            this.cls = ["w", "p", "a", "$",][rnd(0,4)]; 
+            t = this.cls = ["w", "p", "a", "$"][rnd(0,4)]; 
 
-            if (this.cls == "$"){
+            if (t == "$"){
                 this.spec["amt"] = rnd(curlevel, (1+curlevel)*7);
-                return;
             }
 
-            if (this.cls == "w"){
+            if (t== "w"){
                 //x to y damage
                 //+N to strength
 
@@ -344,53 +368,48 @@ $(document).ready(function(){
                 if(max(0,rnd(0,100)-95)) {this.spec["STR"] = rnd(1,5); this.details += "<br/> +" + this.spec["STR"] + "STR";}
 
             }
-            if (this.cls == "p"){
+            if (t== "p"){
                 this.spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
                 this.details += "Restores " + this.spec["HP"] + " HP.";
             }
         }
         this.use = function() {
-            var r;
+            var s=this.spec,c=this.cls;
             if (this.equipped) { 
-                for (x in this.spec){
-                    Character[x] += this.spec[x] != null ? this.spec[x] : 0;
-                }
-                /*
-                Character.HP += this.spec["HP"] != null ? this.spec["HP"] : 0;
-                Character.DMG += this.spec["DMG"] != null ? this.spec["DMG"] : 0;
-                Character.DMX += this.spec["DMX"] != null ? this.spec["DMX"] : 0;
-                Character.HP > Character.maxHP ? Character.HP = Character.maxHP : 0;
-                */
-
-                if (this.cls=="p") writeStatus("You drink the potion. Yummy! +" + this.spec["HP"] + "HP");
-                if (this.cls=="w") writeStatus("You wield the weapon. You can't wait to pwn some noobs.");
+                for (x in s) Character[x] += s[x] != null ? s[x] : 0;
+                if (c=="p") writeStatus("You drink the potion. Yummy! +" + s["HP"] + "HP");
+                if (c=="w") writeStatus("You wield the weapon. You can't wait to pwn some noobs.");
             } else { 
-                for (x in this.spec){
-                    Character[x] -= this.spec[x] != null ? this.spec[x] : 0;
-                }
-                /*
-                Character.DMG -= this.spec["DMG"] != null ? this.spec["DMG"] : 0;
-                Character.DMX -= this.spec["DMX"] != null ? this.spec["DMX"] : 0;
-                */
-                if (this.cls=="w") writeStatus("You unwield the weapon. Time for good old fisticuffs.");
+                for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
+                if (c=="w") writeStatus("You unwield the weapon. Time for good old fisticuffs.");
             }
 
-            return (this.cls =="p"); //destroy
+            return (c=="p"); //destroy
         }
         this.init(); 
     }
 
+    //follow: 0 = never. 1 = after attacked. 2 = always
+    //if not defined ignore them (flock)
+    //lvl = min level to encounter on
+    ms = { 0: {rep : "C", nm : "Cobol", lvl: 1, DMG:"", DMX:"", HP:"", follow:1,flock:0},
+           1: {rep : "j", nm : "Jerk", lvl: 1, DMG:"", DMX:"", HP:"", follow:2,flock:0}
+    };
+    var MNS=2;
+
 
     function Monster(x, y, l) { 
-        this.rep = "M";
-        this.seeking = false;
+        do this.z=rsp(0,MNS); while(ms[this.z].lvl>l) 
+        this.rep = ms[this.z].rep; 
         this.x = x;
         this.y = y;
         this.STR = rnd(l+1,l*2+1) ;
-        this.DMX = 3;
+        this.DMG = rnd(l+1, l*2);
+        this.DMX = rsp(this.DMG+1, this.DMG*2);
         this.AGL = 3;
-        this.HP = 5*(rnd(l*3, l*9)) ;
-        this.maxHP = this.HP;
+        this.hsh = rnd(0,999999);
+        this.maxHP = this.HP = (rnd(l*3, l*9)) ;
+        this.follow = ms[this.z].follow == 2;
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
                 //CHECK DEATH (both) -- maybe do that later...
@@ -399,12 +418,12 @@ $(document).ready(function(){
                 writeStatus("You deal " + d + " damage");
                 if (this.HP > 0 || this.AGL > Character.AGL){
                     Character.HP -= dodmg(this);
-                    writeStatus("Holy crap! That looked painful!");
+                    writeStatus("Holy crap! The " + ms[this.z].nm + " hits you!");
                 }
                 if (this.HP < 0){ 
                     writeStatus("Holy crap! The monster explodes in a huge explosion of blood! It's really gross!");
                     Character.EXP += Math.floor(this.STR * this.maxHP / 12);
-                    if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.");}
+                    if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.")}
 
                     for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
                 }
@@ -414,8 +433,14 @@ $(document).ready(function(){
                 var dir = rnd(0,8);
                 var op = {x : this.x, y: this.y} ; 
 
-                this.x += dx[dir];
-                this.y += dy[dir];
+                if (this.follow){ 
+                    this.x != Character.x ? ( this.x>Character.x? this.x--: this.x++):0;
+                    this.y != Character.y ? ( this.y>Character.y? this.y--: this.y++):0;
+                } else { 
+                    this.x += dx[dir];
+                    this.y += dy[dir];
+                }
+                for (x in monsters) if (this.hsh!=monsters[x].hsh && intersect(this,monsters[x])) setxy(this, op);
                 if (map[this.x][this.y] == "#") setxy(this, op) 
                 if (intersect(this, Character)) {
                     Character.HP -= dodmg(this);
@@ -443,7 +468,7 @@ $(document).ready(function(){
         LVL : 1,
         updatechar : function() { 
             (this.HP == this.maxHP) ? this.rep = "@" : this.rep = (this.HP / this.maxHP).toString()[2]; //Possible bug when YOU ARE DEAD
-        },
+        }
     };
 
 
@@ -451,14 +476,13 @@ $(document).ready(function(){
         sel : 0,
         write : function () {
             var inv = ""; 
-            for (i in inventory){
-                inv += (this.sel==i ? "*" : "-") +  "1x " + inventory[i].getname() + (inventory[i].equipped ? "[equipped]" : "") +  "<br />";
-            }
-            if (inventory.length == 0) inv = "Dust. <br />"
-            for (var i=0;i<max(sz - inventory.length , 0);i++) inv += "- <br />" 
+            for (i in inventory) inv += (this.sel==i ? "*" : "-")+ inventory[i].getname() + (inventory[i].equipped ? "[equipped]" : "") +  "<br/>";
+            
+            if (!inventory.length) inv = "Dust. <br/>"
+            for (var i=0;i<max(sz - inventory.length , 0);i++) inv += "- <br/>" 
 
             $("#board").html(inv);
-        }, 
+        }
 
     };
 
