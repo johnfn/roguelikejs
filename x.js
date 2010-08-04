@@ -62,7 +62,6 @@ $(document).ready(function(){
 
          for (t=0;t<size;t++){
             dungeon.push(rng(size).map(function(){return "#"}));
-            seen.push(rng(size).map(function(){return false;}));
         } 
         for (var i=0;i<roomn;i++){
             var newr = {w: rnd(10,15)};
@@ -135,6 +134,9 @@ $(document).ready(function(){
                 if (i-md>0 && j-md>0 && i < size-md && j < size-md) fdungeon[i] += dungeon[i-md][j-md]; else fdungeon[i] += "#";
             }
         }
+        for (t=0;t<size;t++){
+            seen.push(rng(size).map(function(){return false;})); //conflates with the previous dungeon creatoin loop
+        } 
         for (x in mitems) { mitems[x].x +=md; mitems[x].y +=md;}
         for (x in mmonsters) { mmonsters[x].x +=md; mmonsters[x].y +=md;}
         items = mitems;//todo remove these in a clever way.
@@ -247,12 +249,9 @@ $(document).ready(function(){
             for (var j=x0-rad;j<=x0+rad;j++){
                 if (Math.round( Math.sqrt( (i-x0)*(i-x0) +(j-y0)*(j-y0))) == rad){
                     //draw line from (x0,y0) to (i,j)
-                    var cx,cy;
                     var nx,ny;
                     for (var d=0;d<100;d++){
-                        cx = d * (i-x0)/100;
-                        cy = d * (j-y0)/100;
-                        nx=Math.floor(cx)+x0, ny = Math.floor(cy)+y0;
+                        nx=Math.floor( d * (i-x0)/100)+x0, ny = Math.floor(d * (j-y0)/100)+y0;
                         if (nx>16||ny>16) continue;
                         vis[nx][ny] = "x";
                         seen[nx+screenX][ny+screenY] = true;
