@@ -1,9 +1,10 @@
-$(document).ready(function(){
+$(function(){
 
 //10672-->9737
 //17317-->16306 (7.6K packed)
 //16306-->15861 (7528 packed)
 //15861-->15803 (7507 packed)
+//21549
 
     var kOff = { 
         ks : [],
@@ -22,9 +23,9 @@ $(document).ready(function(){
                              "a" : ["of iron", "of steel", "of bone", "of Mythril", "of Light", "of kittenfur"] //If your weapon and armor match up, cool stuff happen(zorz)
     };
 
-    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83, 80], dx = [1,0,-1,0,1,1,-1,-1],dy = [0,1,0,-1,1,-1,1,-1], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = money = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t;
+    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83, 80], dx = [1,0,-1,0,1,1,-1,-1],dy = [0,1,0,-1,1,-1,1,-1], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = money = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc;
 
-    for (t=0;t<=255;t++) keys[t] = false;
+    while (t++<=255) keys[t] = false;
 
     $(document).keydown (
         function(e){
@@ -40,29 +41,26 @@ $(document).ready(function(){
         }
     );
 
-    function fgen(r,a){return (function(a){return eval(r);})} //My masterpiece  
-
-    function re(x) {return eval(x)} 
+    function fgen(r){return function(){return r;}} //My masterpiece  
     function rng(x) {if(!x)return[0];var zQ=rng(x-1);zQ.push(x-1);return zQ;} //Here we go...
     function rnd(l, h){ return l + Math.floor( Math.random() * (h-l))}
-    function rsp(l, h){ return l + Math.floor( Math.random() * (h))}
+    function rsp(l, h){ return l + Math.floor( Math.random() * h)}
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function max(x,y){return x>y?x:y}
     function min(x,y){return x>y?y:x}
     function abs(x){return x>0?x:-x}
-    function pdbg(x){$("#debugger").html($("#debugger").html() + "<br/>" + x)}
     function setxy(a, b){a.x = b.x;a.y = b.y}
     function dodmg(a){return rnd(a.DMG, a.DMX+1)}
 
     function generateLevel(l){
+        var md=8; 
         curlevel = l;
         size = 25* rsp(2,min(l/2+1,16));//TODO: consider boundaries harder
 
-        var dungeon = [], roomn = rsp(7*size/40, 13*size/40),rooms = [], mitems = [] ,mmonsters = [],loops = 0; //WRONG, used for debugging only
+        var dungeon , roomn = rsp(7*size/40, 13*size/40),rooms = [], mitems = [] ,mmonsters = [],loops = 0; //WRONG, used for debugging only
 
-         for (t=0;t<size;t++){
-            dungeon.push(rng(size).map(function(){return "#"}));
-        } 
+        dungeon = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
+
         for (var i=0;i<roomn;i++){
             var newr = {w: rnd(10,15)};
             newr.h = newr.w;
@@ -77,8 +75,8 @@ $(document).ready(function(){
             good && rooms.push(newr);
         }
 
-        var upplace = rnd(0,roomn-1);
-        var downplace = rnd(0,roomn-1); while(downplace == upplace) downplace = rnd(0,roomn-1);
+        var upplace = rnd(0,rooms.length-1);
+        var downplace = rnd(0,rooms.length-1); //while(downplace == upplace) downplace = rnd(0,roomn-1);
         for (i in rooms){
             for (var j=0;j<rooms[i].w;j++){ 
                 for (var k=0;k<rooms[i].h;k++){ 
@@ -90,7 +88,7 @@ $(document).ready(function(){
                 }
             }
             if (i==upplace) dungeon[rooms[i].x+3][rooms[i].y+3] = ">";
-            if (i==downplace) dungeon[rooms[i].x+3][rooms[i].y+3] = "<";
+            if (i==downplace) dungeon[rooms[i].x+4][rooms[i].y+4] = "<";
         }
         var connectedrooms = [rooms[0]];
         //create a minimum spanning tree of dungeon rooms (LOL) 
@@ -123,9 +121,8 @@ $(document).ready(function(){
         }
 
 
-        //$("#debugger").html(dungeon.join("<br\>"));
+        $("#debugger").html(dungeon.join("<br\>"));
         //pad the dungeon by md chars
-        var md=8; 
         size += md*2;
         var fdungeon = []; 
         for (var i=0;i<size;i++){ 
@@ -147,7 +144,7 @@ $(document).ready(function(){
         setxy(Character,{x:connectedrooms[0].x+md,y:connectedrooms[0].y+md});
     }
 
-    var gameLoop = function(){
+    function gameLoop(){
         var oldPosition = {x : Character.x, y : Character.y } ; 
         var a = false;
 
@@ -159,7 +156,7 @@ $(document).ready(function(){
                     "(D/d)efense:" + Character.DEF + "<br/>" + 
                     "(C/c)onstitution:" + Character.CON + "<br/>" + "");
 
-            clearStatus();
+            $("#status").html("");
             writeStatus( statpoints + " points left.");
             for (x in t) if (keys[x]) Character[t[x]]++, statpoints--;
             if (statpoints <= 0 ){statschange = false; writeBoard(); } 
@@ -167,12 +164,19 @@ $(document).ready(function(){
         }
         Character.updatechar();
 
+        if (Character.EXP > Character.NXT){
+            Character.NXT *=2;
+            Character.LVL++;
+            statschange = true;
+            statpoints = 5;
+        }
         if (showInventory){
             getInventoryKeys(); 
             Inventory.write();
             if (!showInventory) writeBoard();
         } else {
             a = getKeys();
+            pc=map[Character.x][Character.y]; 
             if (a || resting) { 
                 resting = !(a || Character.HP == Character.maxHP) 
                 moves++;
@@ -188,20 +192,15 @@ $(document).ready(function(){
                          } else writeStatus("A " + items[i].getname() + " rolls under your feet.");
                     }
                 }
-                if (map[Character.x][Character.y] == ">") writeStatus("You see stairs leading downward.");
-                if (map[Character.x][Character.y] == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
-                screenX = min( max(0, Character.x - sz/2), size - sz );
-                screenY = min( max(0, Character.y - sz/2), size - sz);
+                if (pc == ">") writeStatus("You see stairs leading downward.");
+                if (pc == "<") writeStatus("You see stairs leading upward.");
+                if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
+                ssXY();
                 writeBoard();
             }
         }
-        writeGeneric();
+        $("#hlth").html("<b>HP: " + Character.HP + "/" + Character.maxHP + " LVL: " + Character.LVL + " $: " + money + " DMG: " + Character.DMG + "-" + Character.DMX + " Dungeon LVL:" + curlevel +  "<br/>"+ " EXP: " + Character.EXP + "/" + Character.NXT + " STR: " + Character.STR + " DEF: " + Character.DEF + " CON: " + Character.CON + " AGL: " + Character.AGL + "</b>");
     }
-
-    function writeGeneric(){
-        $("#hlth").html("<b>HP: " + Character.HP + "/" + Character.maxHP + " LVL: " + Character.LVL + " $: " + money + " DMG: " + Character.DMG + "-" + Character.DMX +  "<br/>"+ " EXP: " + Character.EXP + "/" + Character.NXT + " STR: " + Character.STR + " DEF: " + Character.DEF + " CON: " + Character.CON + " AGL: " + Character.AGL + "</b>");
-    }
-
 
     function writeStatus(status){
         //bold top status
@@ -210,14 +209,10 @@ $(document).ready(function(){
         ar = ar.slice(0,4);
         $("#status").html( ar.join(">") );
     }
-    function clearStatus(){ $("#status").html(""); } 
 
     function initialize(){
         setInterval(gameLoop,90);
         writeBoard();
-    }
-    function bound(x){
-        return min ( max(x, 0) , sz) ;
     }
     function bounded(x){
         return x>=0 && x<sz;
@@ -228,10 +223,11 @@ $(document).ready(function(){
         var vis = [];
         var html = "";
 
+        vis = rng(size).map(function() {return rng(size).map(fgen(" "))}); 
+
         for (var i=0;i<sz;i++) { 
             text.push([]); 
-            vis.push([]);
-            for (var j=0;j<sz;j++) vis[i].push(" "),text[i].push(map[i+screenX][j+screenY]);
+            for (var j=0;j<sz;j++) text[i].push(map[i+screenX][j+screenY]);
             
         }  
 
@@ -254,7 +250,7 @@ $(document).ready(function(){
                         nx=Math.floor( d * (i-x0)/100)+x0, ny = Math.floor(d * (j-y0)/100)+y0;
                         if (nx>16||ny>16) continue;
                         vis[nx][ny] = "x";
-                        seen[nx+screenX][ny+screenY] = true;
+                        seen[nx+screenX][ny+screenY] = true; //replace t/f with "X""y"
                         if (text[nx][ny] == "#") break;
                     }
                 }
@@ -264,7 +260,8 @@ $(document).ready(function(){
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
                 if (vis[i][j] != "x"){ 
-                    if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY] ;else text[i][j] = "&nbsp;";
+                    if (seen[i+screenX][j+screenY]) { text[i][j] = map[i+screenX][j+screenY]; if (text[i][j] ==".") text[i][j] = "_";} 
+                    else text[i][j] = "&nbsp;";
                 }
             }
         } 
@@ -288,14 +285,15 @@ $(document).ready(function(){
         writeStatus("You swing your arms hopelessly at the ground, trying to find something.");
     }
 
+    //TODO abstract writeStatus out of all these
     var m = {//83:function(){writeStatus("You have " + Character.HP + "/" + Character.maxHP + " HP.<br> You have been playing for " + moves + " moves.")},
         80:pickupItem,
         82:function(){writeStatus("You take a quick nap."); resting = true;},
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. (E)xamine. Enter to use.");showInventory = true;},
         72:function(){if(snark)writeStatus("Fine then. (S)tatus (H)elp (I)nventory (R)est (P)ick-up Insta(W)in");else writeStatus("What, you don't know how to play a roguelike?"); snark = true;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
-        190:function(){if (map[Character.x][Character.y] == ">") { writeStatus("You descend the staircase into darker depths..."); generateLevel(curlevel++); writeBoard();} else {writeStatus("There's no staircase here.");} },
-        188:function(){if (map[Character.x][Character.y] == "<") { writeStatus("You ascend the staircase to safer ground."); generateLevel(curlevel--); writeBoard();} else {writeStatus("There's no staircase here.");} }
+        190:function(){if (pc == ">") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel); writeBoard();} else {writeStatus("There's no staircase here.");} },
+        188:function(){if (pc == "<") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel); writeBoard();} else {writeStatus("There's no staircase here.");} }
     };
     function itemuse(){
         inventory[Inventory.sel].equipped = !inventory[Inventory.sel].equipped;
@@ -321,16 +319,20 @@ $(document).ready(function(){
         for (i in m) if (kOff.gt(i)) m[i]();
 
         var change = false;
-        for (i in actionkeys){
-            change |= keys[actionkeys[i]]; 
-        }
+        for (i in actionkeys) change |= keys[actionkeys[i]]; 
+        
         return change;
     }
 
+    scrolltypes = [ //{name:"Summon Monster", lv : 1},
+                    //{name:"Identify", lv : 1},
+                    {name:"Teleport", lv : 1}
+                    ];
 
     function Item(x, y){
         this.x=x;
         this.y=y;
+        this.id=0;
         this.cls = "";
         this.identified = false;
         this.equipped = false;
@@ -351,10 +353,15 @@ $(document).ready(function(){
         this.init = function() { 
             if (Math.random() > .5) this.identified = true;
             
-            t = this.cls = ["w", "p", "a", "$"][rnd(0,4)]; 
+            t = this.cls = ["w", "p", "a", "$", "?"][rnd(0,5)]; 
 
             if (t == "$"){
                 this.spec["amt"] = rnd(curlevel, (1+curlevel)*7);
+            }
+            if (t == "?"){
+                do {this.id = rnd(0,scrolltypes.length);} while (scrolltypes[this.id].lv > curlevel);
+                this.details += "???"; //TODO : abstract out details 
+                //TODO: once you use it once, you know what it does.
             }
 
             if (t== "w"){
@@ -374,7 +381,16 @@ $(document).ready(function(){
         }
         this.use = function() {
             var s=this.spec,c=this.cls;
-            if (this.equipped) { 
+            if (c=="?"){
+                //for now, just teleport.
+                var x,y;
+                do{
+                    x = rsp(Character.x-8,16);
+                    y = rsp(Character.y-8,16);
+                } while (!(x>=0 && x<size && y>=0 && y<size && map[x][y] != "#"));
+                Character.x=x;
+                Character.y=y;
+            } else if (this.equipped) { 
                 for (x in s) Character[x] += s[x] != null ? s[x] : 0;
                 if (c=="p") writeStatus("You drink the potion. Yummy! +" + s["HP"] + "HP");
                 if (c=="w") writeStatus("You wield the weapon. You can't wait to pwn some noobs.");
@@ -383,18 +399,19 @@ $(document).ready(function(){
                 if (c=="w") writeStatus("You unwield the weapon. Time for good old fisticuffs.");
             }
 
-            return (c=="p"); //destroy
+            return (c=="p"||c=="?"); //destroy
         }
         this.init(); 
     }
 
-    //follow: 0 = never. 1 = after attacked. 2 = always
+    //follow: 0 = never. 1 = after attacked. 2 = always, 3 = never moves...
     //if not defined ignore them (flock)
     //lvl = min level to encounter on
-    ms = { 0: {rep : "C", nm : "Cobol", lvl: 1, DMG:"", DMX:"", HP:"", follow:1,flock:0},
-           1: {rep : "j", nm : "Jerk", lvl: 1, DMG:"", DMX:"", HP:"", follow:2,flock:0}
-    };
-    var MNS=2;
+    ms = [{rep : "C", nm : "Cobol", lvl: 1, DMG:"", DMX:"", HP:25, follow:1,flock:0},
+          {rep : "j", nm : "Jerk", lvl: 1, DMG:"", DMX:"", HP:10, follow:2,flock:0},
+          {rep : "s", nm : "Slime heap", lvl: 2, DMG:"", DMX:"", HP:40, follow:3,flock:0}
+    ];
+    var MNS=ms.length;
 
 
     function Monster(x, y, l) { 
@@ -407,7 +424,7 @@ $(document).ready(function(){
         this.DMX = rsp(this.DMG+1, this.DMG*2);
         this.AGL = 3;
         this.hsh = rnd(0,999999);
-        this.maxHP = this.HP = (rnd(l*3, l*9)) ;
+        this.maxHP = this.HP = ms[this.z].HP * (1+Math.random());
         this.follow = ms[this.z].follow == 2;
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
@@ -429,8 +446,9 @@ $(document).ready(function(){
 
                 setxy(Character, oldPosition);
             } else { 
+                if (this.follow==3) return;
                 var dir = rnd(0,8);
-                var op = {x : this.x, y: this.y} ; 
+                var op = {x : this.x, y: this.y};
 
                 if (this.follow){ 
                     this.x != Character.x ? ( this.x>Character.x? this.x--: this.x++):0;
@@ -460,7 +478,7 @@ $(document).ready(function(){
         DMX : 5, 
         AGL : 4,
         EXP : 0,
-        NXT : 50,
+        NXT : 10,
         CON : 10,
         STR : 4,
         DEF : 4,
@@ -484,10 +502,13 @@ $(document).ready(function(){
         }
 
     };
+    function ssXY(){
+        screenX = min( max(0, Character.x - sz/2), size - sz);
+        screenY = min( max(0, Character.y - sz/2), size - sz);
+    }
 
     generateLevel(1);
-    screenX = min( max(0, Character.x - sz/2), size - sz );
-    screenY = min( max(0, Character.y - sz/2), size - sz);
+    ssXY();
     initialize(); 
 
 });
