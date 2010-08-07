@@ -75,7 +75,7 @@ $(function(){
         for (ro in rooms){
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
-                    (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 8 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    (q = rnd(0,999)) < 9 ? items.push(new Item(x,y)) :( q < 8 ? monsters.push(new Monster(x,y,l)) : 0); 
                     map[x][y] = ".";
                 }
             }
@@ -142,7 +142,7 @@ $(function(){
             writeks({"Enter":" Use","E":"xamine","I":" close Inventory"});
             getInventoryKeys(); 
             Inventory.write();
-            if (!showInventory) writeBoard();
+            if (!showInventory) ssXY(), writeBoard();
         } else {
             writeks({"WASD":" Move", "R":"est","I":"nventory","P":"ick up item", "Walk into a monster":"Attack"+B, ">":"Go up stairs","<":"Go down stairs" });
             a = getKeys();
@@ -156,8 +156,7 @@ $(function(){
                 for (i in items){
                     if (intersect(Character, items[i])){
                          if (items[i].cls == "$"){
-                            writeStatus("You pick up some cash off the ground. Sweet.");
-                            money += items[i].spec["amt"];
+                            writeStatus("You now have " + (money += items[i].spec["amt"])+"G");
                             items.splice(i, 1); break;
                          } else writeStatus("A " + items[i].getname() + " rolls under your feet.");
                     }
@@ -328,6 +327,9 @@ $(function(){
                         relem(typedescriptions[this.cls]) + " " +  
                         (this.identified ? relem(finaldescriptors[this.cls]) : "")) : this.n  ; 
             }
+            if (this.cls == "?"){
+                return !this.n ? (this.n = "unidentified scroll"):this.n;
+            }
         }
         this.init = function() { 
             if (mrn() > .5) this.identified = true;
@@ -365,21 +367,23 @@ $(function(){
                 //for now, just teleport.
                 var x,y;
                 do{
-                    x = rsp(Character.x-8,16);
-                    y = rsp(Character.y-8,16);
-                } while (!(x>=0 && x<size && y>=0 && y<size && map[x][y] != "#"));
+                    x = rsp(0,size);
+                    y = rsp(0,size);
+                } while (map[x][y] == "#");
                 Character.x=x;
                 Character.y=y;
-            } else if (this.equipped) { 
-                for (x in s) Character[x] += s[x] != null ? s[x] : 0;
-                if (c=="p") writeStatus("You drink the potion. Yummy! +" + s["HP"] + "HP");
-                if (c=="w") writeStatus("You wield the weapon. You can't wait to pwn some noobs.");
-            } else { 
-                for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
-                if (c=="w") writeStatus("You unwield the weapon. Time for good old fisticuffs.");
+            } else {
+                if (this.equipped) { 
+                    for (x in s) Character[x] += s[x] != null ? s[x] : 0;
+                    if (c=="p") writeStatus("You drink the potion. Yummy! +" + s["HP"] + "HP");
+                    if (c=="w") writeStatus("You wield the weapon. You can't wait to pwn some noobs.");
+                } else { 
+                    for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
+                    if (c=="w") writeStatus("You unwield the weapon. Time for good old fisticuffs.");
+                }
             }
 
-            return (c=="p"||c=="?"); //destroy
+            return (c in ["p","?"]); //destroy
         }
         this.init(); 
     }
@@ -387,9 +391,9 @@ $(function(){
     //follow: 0 = never. 1 = after attacked. 2 = always, 3 = never moves...
     //if not defined ignore them (flock)
     //lvl = min level to encounter on
-    ms = [{rep : "C", nm : "Cobol", lvl: 1, DMG:"", DMX:"", HP:25, follow:1,flock:0},
-          {rep : "j", nm : "Jerk", lvl: 1, DMG:"", DMX:"", HP:10, follow:2,flock:0},
-          {rep : "s", nm : "Slime heap", lvl: 2, DMG:"", DMX:"", HP:40, follow:3,flock:0}
+    ms = [{rep : "C", nm : "Cobol", lvl: 1, DMG:"", DMX:"", HP:25, follow:1},
+          {rep : "j", nm : "Jerk", lvl: 1, DMG:"", DMX:"", HP:10, follow:2},
+          {rep : "s", nm : "Slime heap", lvl: 2, DMG:"", DMX:"", HP:40, follow:3}
     ];
     var MNS=ms.length;
 
@@ -403,13 +407,14 @@ $(function(){
         this.DMG = rnd(l+1, l*2);
         this.DMX = rsp(this.DMG+1, this.DMG*2);
         this.AGL = 3;
-        this.hsh = rnd(0,999999);
+        this.hsh = rnd(0,1e9);
         this.maxHP = this.HP = ms[this.z].HP * (1+mrn());
         this.follow = ms[this.z].follow == 2;
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
                 //CHECK DEATH (both) -- maybe do that later...
                 var d = dodmg(Character);
+                this.follow=1;
                 this.HP -= d;
                 writeStatus("You deal " + d + " damage");
                 if (this.HP > 0 || this.AGL > Character.AGL){
@@ -427,15 +432,14 @@ $(function(){
                 setxy(Character, oldPosition);
             } else { 
                 if (this.follow==3) return;
-                var dir = rnd(0,8);
                 var op = {x : this.x, y: this.y};
 
                 if (this.follow){ 
                     this.x != Character.x ? ( this.x>Character.x? this.x--: this.x++):0;
                     this.y != Character.y ? ( this.y>Character.y? this.y--: this.y++):0;
                 } else { 
-                    this.x += dx[dir];
-                    this.y += dy[dir];
+                    this.x += dx[rnd(0,8)];
+                    this.y += dy[rnd(0,8)];
                 }
                 for (x in monsters) if (this.hsh!=monsters[x].hsh && intersect(this,monsters[x])) setxy(this, op);
                 if (map[this.x][this.y] == "#") setxy(this, op) 
