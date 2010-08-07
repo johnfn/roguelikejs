@@ -62,8 +62,8 @@ $(function(){
         items=[], monsters=[];
         size = buff*2+25* rsp(2,min(l/2+1,16)),roomn = rsp(3*size/40, 8*size/40);
 
-        var dungeon = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
-        var rooms=[],r={}, loops=0,cr;
+        map = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
+        var rooms=[],r, loops=0,cr;
         var t, q;
         nn = roomn = flr(roomn);
         while(roomn--){
@@ -76,7 +76,7 @@ $(function(){
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
                     (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 8 ? monsters.push(new Monster(x,y,l)) : 0); 
-                    dungeon[x][y] = ".";
+                    map[x][y] = ".";
                 }
             }
         }
@@ -84,8 +84,8 @@ $(function(){
             rooms[ro].c=true;
             for (r2 in rooms){
                 var b=0;
-                if (rooms[r2].c == false) {
-                    if (b == 0 || abs(rooms[r2].x-rooms[ro].x)+abs(rooms[r2].y-rooms[ro].y)<
+                if (!rooms[r2].c) {
+                    if (!b || abs(rooms[r2].x-rooms[ro].x)+abs(rooms[r2].y-rooms[ro].y)<
                         abs(rooms[r2].x-rooms[b].x) +abs(rooms[r2].y-rooms[b].y)){
                        b=r2; 
                     }
@@ -93,14 +93,12 @@ $(function(){
             }
             rooms[b].c=true;
             var a=rooms[b].x,b=rooms[b].y;
-            while(a!=rooms[ro].x) dungeon[a>rooms[ro].x?a--:a++][b]="."; 
-            while(b!=rooms[ro].y) dungeon[a][b>rooms[ro].y?b--:b++]="."; 
+            while(a!=rooms[ro].x) map[a>rooms[ro].x?a--:a++][b]="."; 
+            while(b!=rooms[ro].y) map[a][b>rooms[ro].y?b--:b++]="."; 
         }
 
-        dungeon[(up=relem(rooms)).x+3][up.y+3] = ">";
-        dungeon[(dn=relem(rooms)).x+4][dn.y+4] = "<";
-
-        map = dungeon;
+        map[(up=relem(rooms)).x+3][up.y+3] = ">";
+        map[(dn=relem(rooms)).x+4][dn.y+4] = "<";
 
         seen= rng(size).map(function(){return rng(size).map(fgen(false))}); 
         Character.x = dn.x+4;
@@ -119,12 +117,11 @@ $(function(){
         var a = false;
 
         if (statschange) { 
-            writeks({"A":"gility","S":"trength","D":"efense","C":"onstitution"});
-            t = {65:"AGL",83:"STR",67:"CON",69:"DEF"};
+            writeks({"A":"gility","S":"trength","C":"onstitution"});
+            t = {65:"AGL",83:"STR",67:"CON"};
             $("#board").html("Adjust your stats: Press the button in () to change. "+B + 
                     "(A/a)gility :" + Character.AGL + B + 
                     "(S/s)trength:" + Character.STR + B + 
-                    "(D/d)efense:" + Character.DEF + B + 
                     "(C/c)onstitution:" + Character.CON + B + "");
 
             $("#status").html("");
@@ -327,15 +324,15 @@ $(function(){
         }
         this.getname = function() { 
             if (this.cls in typedescriptions){
-                return !this.n ? (this.n= (this.identified ? descriptors[rnd(0, descriptors.length)] : "mysterious ") + " " +  
-                        typedescriptions[this.cls][rnd(0, typedescriptions[this.cls].length)] + " " +  
-                        (this.identified ? finaldescriptors[this.cls][rnd(0, finaldescriptors[this.cls].length)] : "")) : this.n  ; 
+                return !this.n ? (this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  
+                        relem(typedescriptions[this.cls]) + " " +  
+                        (this.identified ? relem(finaldescriptors[this.cls]) : "")) : this.n  ; 
             }
         }
         this.init = function() { 
             if (mrn() > .5) this.identified = true;
             
-            t = this.cls = ["w", "p", "a", "$", "?"][rnd(0,5)]; 
+            t = this.cls = relem(["w", "p", "a", "$", "?"])
 
             if (t == "$"){
                 this.spec["amt"] = rnd(curlevel, (1+curlevel)*7);
