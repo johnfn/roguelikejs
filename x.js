@@ -23,7 +23,7 @@ $(function(){
                              "a" : ["of iron", "of steel", "of bone", "of Mythril", "of Light", "of kittenfur"] //If your weapon and armor match up, cool stuff happen(zorz)
     };
 
-    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83, 80], dx = [1,0,-1,0,1,1,-1,-1],dy = [0,1,0,-1,1,-1,1,-1], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = money = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc;
+    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83, 80], dx = [1,0,-1,0,1,1,-1,-1],dy = [0,1,0,-1,1,-1,1,-1], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = money = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>";
 
     while (t++<=255) keys[t] = false;
 
@@ -41,120 +41,91 @@ $(function(){
         }
     );
 
+    flr = Math.floor;
+    mrn = Math.random;
+    min = Math.min;
+    max = Math.max;
+    abs = Math.abs;
     function fgen(r){return function(){return r;}} //My masterpiece  
     function rng(x) {if(!x)return[0];var zQ=rng(x-1);zQ.push(x-1);return zQ;} //Here we go...
-    function rnd(l, h){ return l + Math.floor( Math.random() * (h-l))}
-    function rsp(l, h){ return l + Math.floor( Math.random() * h)}
+    function rnd(l, h){ return l + flr( mrn() * (h-l))}
+    function rsp(l, h){ return l + flr( mrn() * h)}
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
-    function max(x,y){return x>y?x:y}
-    function min(x,y){return x>y?y:x}
-    function abs(x){return x>0?x:-x}
     function setxy(a, b){a.x = b.x;a.y = b.y}
     function dodmg(a){return rnd(a.DMG, a.DMX+1)}
 
+    function relem(x){return x[rnd(0,x.length)]} //NEW
+
     function generateLevel(l){
-        var md=8; 
-        curlevel = l;
-        size = 25* rsp(2,min(l/2+1,16));//TODO: consider boundaries harder
+        var buff=8;
+        curlevel=l;
+        items=[], monsters=[];
+        size = buff*2+25* rsp(2,min(l/2+1,16)),roomn = rsp(3*size/40, 8*size/40);
 
-        var dungeon , roomn = rsp(7*size/40, 13*size/40),rooms = [], mitems = [] ,mmonsters = [],loops = 0; //WRONG, used for debugging only
-
-        dungeon = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
-
-        for (var i=0;i<roomn;i++){
-            var newr = {w: rnd(10,15)};
-            newr.h = newr.w;
-            var good = false;
-            while (!good){
-                if (++loops>roomn*8) break; //TODO: this puts a theoretical limit at 100 rooms?
-                good = true;
-                newr.x = rnd(1,size - newr.w);
-                newr.y = rnd(1,size - newr.h);
-                for (j in rooms) if (abs(newr.x - rooms[j].x) < 10 && abs(newr.y - rooms[j].y) < 10) {good = false; break;}
-            }
-            good && rooms.push(newr);
+        var dungeon = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
+        var rooms=[],r={}, loops=0,cr;
+        var t, q;
+        nn = roomn = flr(roomn);
+        while(roomn--){
+            (r={}).x=rnd(buff,size-buff-15);r.y=rnd(buff,size-buff-15);
+            r.w=r.h=rnd(12,15);
+            rooms.push(r);
         }
 
-        var upplace = rnd(0,rooms.length-1);
-        var downplace = rnd(0,rooms.length-1); //while(downplace == upplace) downplace = rnd(0,roomn-1);
-        for (i in rooms){
-            for (var j=0;j<rooms[i].w;j++){ 
-                for (var k=0;k<rooms[i].h;k++){ 
-                    var tx = rooms[i].x + j, ty = rooms[i].y + k;
-                    if (tx >= size || ty >= size) continue;
-                    if (rnd(0,800) < 4) mitems.push(new Item(tx, ty)) 
-                    if (rnd(0,400) < 2) mmonsters.push(new Monster(tx, ty, l)) 
-                    dungeon[tx][ty] = ".";
+        for (ro in rooms){
+            for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
+                for (var y=cr.y;y<cr.y+cr.h;++y){
+                    (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 8 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    dungeon[x][y] = ".";
                 }
             }
-            if (i==upplace) dungeon[rooms[i].x+3][rooms[i].y+3] = ">";
-            if (i==downplace) dungeon[rooms[i].x+4][rooms[i].y+4] = "<";
         }
-        var connectedrooms = [rooms[0]];
-        //create a minimum spanning tree of dungeon rooms (LOL) 
-        while (rooms.length > 0) { 
-            //find closest room to rooms already connected
-            var ldi = size*3;
-            var start = stop = -1;
-            //we say we have already considered the first i rooms
-            for (j in connectedrooms){ 
-                for (k in rooms){
-                    var dist = abs(connectedrooms[j].x - rooms[k].x) + abs(connectedrooms[j].y - rooms[k].y) ;
-                    if (dist < ldi){
-                        ldi = dist;
-                        start = j;
-                        stop = k;
+        for (ro in rooms){
+            rooms[ro].c=true;
+            for (r2 in rooms){
+                var b=0;
+                if (rooms[r2].c == false) {
+                    if (b == 0 || abs(rooms[r2].x-rooms[ro].x)+abs(rooms[r2].y-rooms[ro].y)<
+                        abs(rooms[r2].x-rooms[b].x) +abs(rooms[r2].y-rooms[b].y)){
+                       b=r2; 
                     }
                 }
             }
-            //connect connectedrooms[start] to rooms[stop]
-            var s={}; setxy(s, connectedrooms[start]);
-            var e={}; setxy(e, rooms[stop]);
-
-            for(x in s)s[x]=min(s[x],size-1);
-            for(x in e)e[x]=min(e[x],size-1);
-
-            while (s.x != e.x){ s.x += (s.x>e.x)?-1:1; dungeon[s.x][s.y] = "."}
-            while (s.y != e.y){ s.y += (s.y>e.y)?-1:1; dungeon[s.x][s.y] = "."} //:)
-
-            connectedrooms.push(rooms.splice(stop, 1)[0]);
+            rooms[b].c=true;
+            var a=rooms[b].x,b=rooms[b].y;
+            while(a!=rooms[ro].x) dungeon[a>rooms[ro].x?a--:a++][b]="."; 
+            while(b!=rooms[ro].y) dungeon[a][b>rooms[ro].y?b--:b++]="."; 
         }
 
+        dungeon[(up=relem(rooms)).x+3][up.y+3] = ">";
+        dungeon[(dn=relem(rooms)).x+4][dn.y+4] = "<";
 
-        $("#debugger").html(dungeon.join("<br\>"));
-        //pad the dungeon by md chars
-        size += md*2;
-        var fdungeon = []; 
-        for (var i=0;i<size;i++){ 
-            fdungeon.push([""]); 
-            for (j=0;j<size;j++){ 
-                if (i-md>0 && j-md>0 && i < size-md && j < size-md) fdungeon[i] += dungeon[i-md][j-md]; else fdungeon[i] += "#";
-            }
-        }
-        for (t=0;t<size;t++){
-            seen.push(rng(size).map(function(){return false;})); //conflates with the previous dungeon creatoin loop
-        } 
-        for (x in mitems) { mitems[x].x +=md; mitems[x].y +=md;}
-        for (x in mmonsters) { mmonsters[x].x +=md; mmonsters[x].y +=md;}
-        items = mitems;//todo remove these in a clever way.
-        monsters = mmonsters;
+        map = dungeon;
 
-        map = fdungeon;
-
-        setxy(Character,{x:connectedrooms[0].x+md,y:connectedrooms[0].y+md});
+        seen= rng(size).map(function(){return rng(size).map(fgen(false))}); 
+        Character.x = dn.x+4;
+        Character.y = dn.y+4;
     }
 
+
+    function writeks(d){
+        var s="";
+        for (k in d)
+            s += " <b>"+k+"</b>:" + d[k];
+        $("#ks").html(s+B);
+    }
     function gameLoop(){
         var oldPosition = {x : Character.x, y : Character.y } ; 
         var a = false;
 
         if (statschange) { 
+            writeks({"A":"gility","S":"trength","D":"efense","C":"onstitution"});
             t = {65:"AGL",83:"STR",67:"CON",69:"DEF"};
-            $("#board").html("Adjust your stats: Press the button in () to change. <br/>" + 
-                    "(A/a)gility :" + Character.AGL + "<br/>" + 
-                    "(S/s)trength:" + Character.STR + "<br/>" + 
-                    "(D/d)efense:" + Character.DEF + "<br/>" + 
-                    "(C/c)onstitution:" + Character.CON + "<br/>" + "");
+            $("#board").html("Adjust your stats: Press the button in () to change. "+B + 
+                    "(A/a)gility :" + Character.AGL + B + 
+                    "(S/s)trength:" + Character.STR + B + 
+                    "(D/d)efense:" + Character.DEF + B + 
+                    "(C/c)onstitution:" + Character.CON + B + "");
 
             $("#status").html("");
             writeStatus( statpoints + " points left.");
@@ -171,10 +142,12 @@ $(function(){
             statpoints = 5;
         }
         if (showInventory){
+            writeks({"Enter":" Use","E":"xamine","I":" close Inventory"});
             getInventoryKeys(); 
             Inventory.write();
             if (!showInventory) writeBoard();
         } else {
+            writeks({"WASD":" Move", "R":"est","I":"nventory","P":"ick up item", "Walk into a monster":"Attack"+B, ">":"Go up stairs","<":"Go down stairs" });
             a = getKeys();
             pc=map[Character.x][Character.y]; 
             if (a || resting) { 
@@ -199,13 +172,13 @@ $(function(){
                 writeBoard();
             }
         }
-        $("#hlth").html("<b>HP: " + Character.HP + "/" + Character.maxHP + " LVL: " + Character.LVL + " $: " + money + " DMG: " + Character.DMG + "-" + Character.DMX + " Dungeon LVL:" + curlevel +  "<br/>"+ " EXP: " + Character.EXP + "/" + Character.NXT + " STR: " + Character.STR + " DEF: " + Character.DEF + " CON: " + Character.CON + " AGL: " + Character.AGL + "</b>");
+        $("#hlth").html("HP: " + Character.HP + "/" + Character.maxHP +B+ " LVL: " + Character.LVL +B+ " $: " + money +B+ " DMG: " + Character.DMG + "-" + Character.DMX + B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ " STR: " + Character.STR +B+ " DEF: " + Character.DEF +B+ " CON: " + Character.CON +B+ " AGL: " + Character.AGL +B+ " Dungeon LVL:" + curlevel +B);
     }
 
     function writeStatus(status){
         //bold top status
         var ar = $("#status").html().split(">");
-        ar.splice(0,0, status + "<br/>"); 
+        ar.splice(0,0, status + B); 
         ar = ar.slice(0,4);
         $("#status").html( ar.join(">") );
     }
@@ -231,6 +204,7 @@ $(function(){
             
         }  
 
+        //TODO abstract out bounded into a function on the object.. or do one better and dont put it on the object...
         for (i in items) if(bounded(items[i].x - screenX) && bounded(items[i].y - screenY)) text[items[i].x - screenX][items[i].y - screenY] = items[i].cls;
 
         for (i in monsters) if(bounded(monsters[i].x - screenX) && bounded(monsters[i].y - screenY)) text[monsters[i].x - screenX][monsters[i].y - screenY] = monsters[i].rep;
@@ -247,7 +221,7 @@ $(function(){
                     //draw line from (x0,y0) to (i,j)
                     var nx,ny;
                     for (var d=0;d<100;d++){
-                        nx=Math.floor( d * (i-x0)/100)+x0, ny = Math.floor(d * (j-y0)/100)+y0;
+                        nx=flr( d * (i-x0)/100)+x0, ny = flr(d * (j-y0)/100)+y0;
                         if (nx>16||ny>16) continue;
                         vis[nx][ny] = "x";
                         seen[nx+screenX][ny+screenY] = true; //replace t/f with "X""y"
@@ -260,13 +234,21 @@ $(function(){
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
                 if (vis[i][j] != "x"){ 
-                    if (seen[i+screenX][j+screenY]) { text[i][j] = map[i+screenX][j+screenY]; if (text[i][j] ==".") text[i][j] = "_";} 
-                    else text[i][j] = "&nbsp;";
+                    if (seen[i+screenX][j+screenY]) { text[i][j] = map[i+screenX][j+screenY]; if (text[i][j] ==".") text[i][j] = "_";} else text[i][j] = "&nbsp;";
+                    //TODO: This massively slows down Firefox
+                    //wrap everything with span
+                    //var cs = { ".":"gray", "_":"black" }; 
+                    //var bcs = { "_":"gray", ".":"brown" }; 
+                      //text[i][j] = "<span style='color:"+cs[text[i][j]]+"; background-color:"+bcs[text[i][j]]+"'>"+text[i][j]+"</span>";
+                    //text[i][j] = "<span style='color:blue; background-color:black;'>" + text[i][j] + "</span>";
                 }
             }
         } 
 
-        for (i in text) html += text[i].join("") + "<br/>";
+
+
+        style="background-color:black;color:red" 
+        for (i in text) html += text[i].join("") + B;
 
         $("#board").html(html);
     }
@@ -351,7 +333,7 @@ $(function(){
             }
         }
         this.init = function() { 
-            if (Math.random() > .5) this.identified = true;
+            if (mrn() > .5) this.identified = true;
             
             t = this.cls = ["w", "p", "a", "$", "?"][rnd(0,5)]; 
 
@@ -371,7 +353,7 @@ $(function(){
                 this.spec["DMG"] = rnd(1+curlevel, 2*curlevel+4);
                 this.spec["DMX"] = this.spec["DMG"] + rnd(1,2+3*(1+curlevel));
                 this.details += "Deals " + this.spec["DMG"] + "-" + this.spec["DMX"] + " damage.";
-                if(max(0,rnd(0,100)-95)) {this.spec["STR"] = rnd(1,5); this.details += "<br/> +" + this.spec["STR"] + "STR";}
+                if(max(0,rnd(0,100)-95)) {this.spec["STR"] = rnd(1,5); this.details += B+"+" + this.spec["STR"] + "STR";}
 
             }
             if (t== "p"){
@@ -382,6 +364,7 @@ $(function(){
         this.use = function() {
             var s=this.spec,c=this.cls;
             if (c=="?"){
+                showInventory = false;
                 //for now, just teleport.
                 var x,y;
                 do{
@@ -424,7 +407,7 @@ $(function(){
         this.DMX = rsp(this.DMG+1, this.DMG*2);
         this.AGL = 3;
         this.hsh = rnd(0,999999);
-        this.maxHP = this.HP = ms[this.z].HP * (1+Math.random());
+        this.maxHP = this.HP = ms[this.z].HP * (1+mrn());
         this.follow = ms[this.z].follow == 2;
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
@@ -438,7 +421,7 @@ $(function(){
                 }
                 if (this.HP < 0){ 
                     writeStatus("Holy crap! The monster explodes in a huge explosion of blood! It's really gross!");
-                    Character.EXP += Math.floor(this.STR * this.maxHP / 12);
+                    Character.EXP += flr(this.STR * this.maxHP / 12);
                     if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.")}
 
                     for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
@@ -493,10 +476,10 @@ $(function(){
         sel : 0,
         write : function () {
             var inv = ""; 
-            for (i in inventory) inv += (this.sel==i ? "*" : "-")+ inventory[i].getname() + (inventory[i].equipped ? "[equipped]" : "") +  "<br/>";
+            for (i in inventory) inv += (this.sel==i ? "*" : "-")+ inventory[i].getname() + (inventory[i].equipped ? "[equipped]" : "") +  B;
             
-            if (!inventory.length) inv = "Dust. <br/>"
-            for (var i=0;i<max(sz - inventory.length , 0);i++) inv += "- <br/>" 
+            if (!inventory.length) inv = "Dust. "+B
+            for (var i=0;i<max(sz - inventory.length , 0);i++) inv += "-"+B
 
             $("#board").html(inv);
         }
