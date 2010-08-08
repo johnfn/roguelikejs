@@ -16,14 +16,14 @@ $(function(){
     //That would stave off the probability of getting like 20 pokey things in a row
     var typedescriptions = { "w" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "long pokey thing"],
                              "p" : ["vial", "potion", "tonic"],
-                             "a" : ["chestplate", "helmet", "legplate", "pair of boots"] //Further note to self. Only one of these may be equipped at a time.
+                             "a" : ["chestplate", "helmet", "legplate", "boots"] //Further note to self. Only one of these may be equipped at a time.
     };
     var finaldescriptors = { "w" : ["of Glory", "of Truth", "of bone", "made out of cats", "of Light", "of Power", "of purity", "of steel", "of bronze", "of iron"],
                              "p" : ["of Healing"], //uhm... h..m...
                              "a" : ["of iron", "of steel", "of bone", "of Mythril", "of Light", "of kittenfur"] //If your weapon and armor match up, cool stuff happen(zorz)
     };
 
-    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83, 80], dx = [1,0,-1,0,1,1,-1,-1],dy = [0,1,0,-1,1,-1,1,-1], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = money = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>";
+    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83, 80], dx = [1,0,-1,0,1,1,-1,-1],dy = [0,1,0,-1,1,-1,1,-1], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = money = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
 
     while (t++<=255) keys[t] = false;
 
@@ -52,7 +52,7 @@ $(function(){
     function rsp(l, h){ return l + flr( mrn() * h)}
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function setxy(a, b){a.x = b.x;a.y = b.y}
-    function dodmg(a){return rnd(a.DMG, a.DMX+1)}
+    function dodmg(a,b){return max(0,rnd(a.DMG, a.DMX+1)-b.AC)} //a to b
 
     function relem(x){return x[rnd(0,x.length)]} //NEW
 
@@ -116,6 +116,7 @@ $(function(){
         var oldPosition = {x : Character.x, y : Character.y } ; 
         var a = false;
 
+        Character.HP=max(Character.HP,Character.maxHP);
         if (statschange) { 
             writeks({"A":"gility","S":"trength","C":"onstitution"});
             t = {65:"AGL",83:"STR",67:"CON"};
@@ -123,14 +124,12 @@ $(function(){
                     "(A/a)gility :" + Character.AGL + B + 
                     "(S/s)trength:" + Character.STR + B + 
                     "(C/c)onstitution:" + Character.CON + B + "");
-
             $("#status").html("");
             writeStatus( statpoints + " points left.");
             for (x in t) if (keys[x]) Character[t[x]]++, statpoints--;
             if (statpoints <= 0 ){statschange = false; writeBoard(); } 
             return;
         }
-        Character.updatechar();
 
         if (Character.EXP > Character.NXT){
             Character.NXT *=2;
@@ -168,7 +167,7 @@ $(function(){
                 writeBoard();
             }
         }
-        $("#hlth").html("HP: " + Character.HP + "/" + Character.maxHP +B+ " LVL: " + Character.LVL +B+ " $: " + money +B+ " DMG: " + Character.DMG + "-" + Character.DMX + B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ " STR: " + Character.STR +B+ " DEF: " + Character.DEF +B+ " CON: " + Character.CON +B+ " AGL: " + Character.AGL +B+ " Dungeon LVL:" + curlevel +B);
+        $("#hlth").html("HP: " + Character.HP + "/" + Character.maxHP +B+ " LVL: " + Character.LVL +B+ " $: " + money +B+ " DMG: " + Character.DMG + "-" + Character.DMX + B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ " STR: " + Character.STR +B+ " AC: " + Character.AC +B+ " CON: " + Character.CON +B+ " AGL: " + Character.AGL +B+ " Dungeon LVL:" + curlevel +B);
     }
 
     function writeStatus(status){
@@ -227,6 +226,7 @@ $(function(){
             }
         }
         
+        //TODO consolidate with other thing... 
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
                 if (vis[i][j] != "x"){ 
@@ -274,7 +274,14 @@ $(function(){
         188:function(){if (pc == "<") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel); writeBoard();} else {writeStatus("There's no staircase here.");} }
     };
     function itemuse(){
-        inventory[Inventory.sel].equipped = !inventory[Inventory.sel].equipped;
+        var a=inventory[Inventory.sel];
+        if (!a.equipped){
+            //about to equip
+            if ((a.cls=="w"&& wielding["w"]) || (a.cls=="a"&&wielding[a.typ])) { writeStatus("You can't wield another item of that type."); return;}
+        }
+        a.cls=="w"?wielding["w"] = !wielding["w"]:0;
+        a.cls=="a"?wielding[a.typ] = !wielding[a.typ]:0;
+        a.equipped = !a.equipped;
         if (inventory[Inventory.sel].use()){
             inventory.splice(Inventory.sel, 1);
         }
@@ -317,6 +324,7 @@ $(function(){
         this.spec = {}; 
         this.n = "";
         this.details = "";
+        this.typ="";
         this.getdetails = function(){
             if (!this.identified) return "This item has not been identified.";
             return this.details;
@@ -324,7 +332,7 @@ $(function(){
         this.getname = function() { 
             if (this.cls in typedescriptions){
                 return !this.n ? (this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  
-                        relem(typedescriptions[this.cls]) + " " +  
+                        (this.typ = relem(typedescriptions[this.cls])) + " " +  
                         (this.identified ? relem(finaldescriptors[this.cls]) : "")) : this.n  ; 
             }
             if (this.cls == "?"){
@@ -359,6 +367,9 @@ $(function(){
                 this.spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
                 this.details += "Restores " + this.spec["HP"] + " HP.";
             }
+            if (t=="a"){
+                this.spec["AC"]=rnd(curlevel,curlevel*2);
+            }
         }
         this.use = function() {
             var s=this.spec,c=this.cls;
@@ -377,9 +388,11 @@ $(function(){
                     for (x in s) Character[x] += s[x] != null ? s[x] : 0;
                     if (c=="p") writeStatus("You drink the potion. Yummy! +" + s["HP"] + "HP");
                     if (c=="w") writeStatus("You wield the weapon. You can't wait to pwn some noobs.");
+                    if (c=="a") writeStatus("You put on the armor.");
                 } else { 
                     for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
                     if (c=="w") writeStatus("You unwield the weapon. Time for good old fisticuffs.");
+                    if (c=="a") writeStatus("You take off the armor.");
                 }
             }
 
@@ -391,8 +404,8 @@ $(function(){
     //follow: 0 = never. 1 = after attacked. 2 = always, 3 = never moves...
     //if not defined ignore them (flock)
     //lvl = min level to encounter on
-    ms = [{rep : "C", nm : "Cobol", lvl: 1, DMG:"", DMX:"", HP:25, follow:1},
-          {rep : "j", nm : "Jerk", lvl: 1, DMG:"", DMX:"", HP:10, follow:2},
+    ms = [{rep : "C", nm : "Cobol", lvl: 1, DMG:"", DMX:"", HP:5, follow:1},
+          {rep : "j", nm : "Jerk", lvl: 1, DMG:"", DMX:"", HP:3, follow:2},
           {rep : "s", nm : "Slime heap", lvl: 2, DMG:"", DMX:"", HP:40, follow:3}
     ];
     var MNS=ms.length;
@@ -404,7 +417,7 @@ $(function(){
         this.x = x;
         this.y = y;
         this.STR = rnd(l+1,l*2+1) ;
-        this.DMG = rnd(l+1, l*2);
+        this.DMG = rnd(l, l*2);
         this.DMX = rsp(this.DMG+1, this.DMG*2);
         this.AGL = 3;
         this.hsh = rnd(0,1e9);
@@ -413,12 +426,12 @@ $(function(){
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
                 //CHECK DEATH (both) -- maybe do that later...
-                var d = dodmg(Character);
+                var d = dodmg(Character,this);
                 this.follow=1;
                 this.HP -= d;
                 writeStatus("You deal " + d + " damage");
                 if (this.HP > 0 || this.AGL > Character.AGL){
-                    Character.HP -= dodmg(this);
+                    Character.HP -= dodmg(this,Character);
                     writeStatus("Holy crap! The " + ms[this.z].nm + " hits you!");
                 }
                 if (this.HP < 0){ 
@@ -444,7 +457,7 @@ $(function(){
                 for (x in monsters) if (this.hsh!=monsters[x].hsh && intersect(this,monsters[x])) setxy(this, op);
                 if (map[this.x][this.y] == "#") setxy(this, op) 
                 if (intersect(this, Character)) {
-                    Character.HP -= dodmg(this);
+                    Character.HP -= dodmg(this,Character);
                     writeStatus("Holy crap! That looked painful!");
                     setxy(this, op) 
                 }
@@ -455,9 +468,8 @@ $(function(){
     var Character = { 
         x : 5,
         y : 8,
-        HP : 100,
-        maxHP : 100,
-        rep : "@",
+        HP : 18,
+        maxHP : 18,
         DMG : 2, 
         DMX : 5, 
         AGL : 4,
@@ -465,11 +477,11 @@ $(function(){
         NXT : 10,
         CON : 10,
         STR : 4,
-        DEF : 4,
+        AC : 1,
         LVL : 1,
-        updatechar : function() { 
-            (this.HP == this.maxHP) ? this.rep = "@" : this.rep = (this.HP / this.maxHP).toString()[2]; //Possible bug when YOU ARE DEAD
-        }
+        rep : (function() { 
+            return (this.HP == this.maxHP) ? "@" : (this.HP / this.maxHP).toString()[2]; //Possible bug when YOU ARE DEAD
+        })()
     };
 
 
