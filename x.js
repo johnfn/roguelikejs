@@ -1,5 +1,8 @@
 $(function(){
 
+//TODO Consider a wrap() function that wraps things in spans or w/e
+
+
 //10672-->9737
 //17317-->16306 (7.6K packed)
 //16306-->15861 (7528 packed)
@@ -28,6 +31,7 @@ $(function(){
     $(document).keydown (
         function(e){
             t = e.which;
+            console.log(t);
             keys[t]=true;
             kOff.st(t);
             gameLoop();
@@ -47,13 +51,13 @@ $(function(){
     abs = Math.abs;
     function fgen(r){return function(){return r;}} //My masterpiece  
     function rng(x) {if(!x)return[0];var zQ=rng(x-1);zQ.push(x-1);return zQ;} //Here we go...
-    function rnd(l, h){ return l + flr( mrn() * (h-l))}
+    function rnd(l, h){ return l + flr( mrn() * (h-l+1))}
     function rsp(l, h){ return l + flr( mrn() * h)}
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function setxy(a, b){a.x = b.x;a.y = b.y}
-    function dodmg(a,b){return max(0,rnd(a.DMG, a.DMX+1)-b.AC)} //a to b
+    function dodmg(a,b){return max(0,rnd(a.DMG, a.DMX+1)-b.AC+a.STR)} //a hits b
 
-    function relem(x){return x[rnd(0,x.length)]} //NEW
+    function relem(x){return x[rnd(0,x.length-1)]} //NEW
 
     function generateLevel(l){
         var buff=8;
@@ -97,7 +101,7 @@ $(function(){
         }
 
         map[(up=relem(rooms)).x+3][up.y+3] = ">";
-        map[(dn=relem(rooms)).x+4][dn.y+4] = "<";
+        map[(dn=relem(rooms)).x+4][dn.y+4] = "&lt;";
 
         seen= rng(size).map(function(){return rng(size).map(fgen(false))}); 
         Character.x = dn.x+4;
@@ -117,9 +121,10 @@ $(function(){
 
         Character.HP=min(Character.HP,Character.maxHP);
         if (statschange) { 
+            $(".board > span").html("").css("background-color","");
             writeks({"A":"gility","S":"trength","C":"onstitution"});
             t = {65:"AGL",83:"STR",67:"CON"};
-            $("#board").html("Adjust your stats: Press the button in () to change. "+B + 
+            $("#1F1").html("Adjust your stats: Press the button in () to change. "+B + 
                     "(A/a)gility :" + Character.AGL + B + 
                     "(S/s)trength:" + Character.STR + B + 
                     "(C/c)onstitution:" + Character.CON + B + "");
@@ -133,8 +138,8 @@ $(function(){
         if (Character.EXP > Character.NXT){
             Character.NXT *=2;
             Character.LVL++;
-            statschange = true;
-            statpoints = 5;
+            writeStatus("<span style='color:red'>Level up! Hit L to adjust your new stats.</span>");
+            statpoints = 1;
         }
         if (showInventory){
             writeks({"Enter":" Use","E":"xamine","I":" close Inventory"});
@@ -162,7 +167,7 @@ $(function(){
                     }
                 }
                 if (pc == ">") writeStatus("You see stairs leading downward.");
-                if (pc == "<") writeStatus("You see stairs leading upward.");
+                if (pc == "&lt;") writeStatus("You see stairs leading upward.");
                 if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
                 ssXY();
                 writeBoard();
@@ -179,6 +184,7 @@ $(function(){
         $("#status").html( ar.join(">") );
     }
 
+    var ox, oy;
     function initialize(){
     
         for (var i=0;i<sz;i++) { 
@@ -188,13 +194,18 @@ $(function(){
         } 
         gameLoop();
         writeBoard();
-        
+
     }
     function bounded(x){
         return x>=0 && x<sz;
     }
 
     function writeBoard(){
+        ox = ox || Character.x;
+        oy = oy || Character.y;
+        
+    
+    
         var text = [];
         var vis = [];
         var html = "";
@@ -235,6 +246,8 @@ $(function(){
         }
         
         //TODO consolidate with other thing... 
+        
+        //console.log(text[ox-screenX][oy-screenY]);
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
                 if (vis[i][j] != "x"){ 
@@ -250,7 +263,7 @@ $(function(){
                 if ( vis[i][j] != "x" && s == ".") t.css("color",bl);
             }
         } 
-
+        //console.log($("#"+(ox-screenX)+"F"+(oy-screenY)).html());
 
 
         //style="background-color:black;color:red" 
@@ -278,6 +291,7 @@ $(function(){
         80:pickupItem,
         82:function(){writeStatus("You take a quick nap."); resting = true;},
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; },
+        76:function(){statschange = true;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         190:function(){if (pc == ">") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel);} else {writeStatus("There's no staircase here.");} },
         188:function(){if (pc == "<") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel); } else {writeStatus("There's no staircase here.");} }
@@ -345,7 +359,7 @@ $(function(){
                 this.spec["money"] = -rnd(curlevel, (1+curlevel)*7);
             }
             if (t == "?"){
-                do {this.id = rnd(0,scrolltypes.length);} while (scrolltypes[this.id].lv > curlevel);
+                do {this.id = rnd(0,scrolltypes.length-1);} while (scrolltypes[this.id].lv > curlevel);
                 this.n = "unidentified scroll";
                 //TODO: once you use it once, you know what it does.
             }
@@ -367,7 +381,7 @@ $(function(){
                 this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + " "+ (this.identified ? relem(finaldescriptors[t]):"");
             }
             if (t== "p"){
-                this.n = "Potion of thingy.";
+                this.n = "Potion of thingy";
                 this.spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
             }
 
@@ -433,7 +447,7 @@ $(function(){
                 writeStatus("You deal " + d + " damage.");
                 if (this.HP > 0 || this.AGL > Character.AGL){
                     
-                    writeStatus("Holy crap! The " + ms[this.z].nm + " deals"+ (t = dodmg(this,Character)) +"damage!"); //WRONG
+                    writeStatus("Holy crap! The " + ms[this.z].nm + " deals "+ (t = dodmg(this,Character)) +" damage!"); //WRONG
                     Character.HP -=t;
                 }
                 if (this.HP < 0){ 
@@ -460,8 +474,8 @@ $(function(){
                 for (x in monsters) if (this.hsh!=monsters[x].hsh && intersect(this,monsters[x])) setxy(this, op);
                 if (map[this.x][this.y] == "#") setxy(this, op) 
                 if (intersect(this, Character)) {
-                    Character.HP -= dodmg(this,Character);
-                    writeStatus("Holy crap! That looked painful!");
+                    writeStatus("Holy crap! The " + ms[this.z].nm + " deals "+ (t = dodmg(this,Character)) +" damage!"); 
+                    Character.HP -= t; //TODO obvious code duplication here
                     setxy(this, op) 
                 }
             }
