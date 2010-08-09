@@ -179,6 +179,12 @@ $(function(){
     }
 
     function initialize(){
+    
+        for (var i=0;i<sz;i++) { 
+          for (var j=0;j<sz;j++) 
+            $(".board").append("<span id='"+i+"F"+j+"'>P</span>"); 
+        $(".board").append("<br>");
+        } 
         setInterval(gameLoop,90);
         writeBoard();
     }
@@ -230,23 +236,26 @@ $(function(){
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
                 if (vis[i][j] != "x"){ 
-                    if (seen[i+screenX][j+screenY]) { text[i][j] = map[i+screenX][j+screenY]; if (text[i][j] ==".") text[i][j] = "_";} else text[i][j] = "&nbsp;";
                     //TODO: This massively slows down Firefox
+                    if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
                     //wrap everything with span
-                    //var cs = { ".":"gray", "_":"black", "C":"red", "j":"blue" }; 
-                    //var bcs = { "_":"gray", ".":"brown", "&nbsp;":"black" }; 
-                     // text[i][j] = "<span style='color:"+cs[text[i][j]]+"'>"+text[i][j]+"</span>";
-                    //text[i][j] = "<span style='color:blue; background-color:black;'>" + text[i][j] + "</span>";
+                    var cs = { ".":"gray", "_":"black","C":"red", "j":"blue","$":"gold","a":"cyan" }; 
+                    var bcs = { "_":"gray", ".":"white", "&nbsp;":"black" }; 
+                    //console.log("#"+i+"F"+j);
+                    
+
                 }
+                if ( $("#"+i+"F"+j).html() != text[i][j]) $("#"+i+"F"+j).html(text[i][j]).css({"color":cs[text[i][j]] || "black" ,"background-color":bcs[text[i][j]] || "white" });
+                if ( vis[i][j] != "x" && text[i][j] == ".") $("#"+i+"F"+j).css("color","black");
             }
         } 
 
 
 
         //style="background-color:black;color:red" 
-        for (i in text) html += text[i].join("") + B;
+        //for (i in text) html += text[i].join("") + B;
 
-        $("#board").html(html);
+        //$("#board").html(html);
     }
 
 
