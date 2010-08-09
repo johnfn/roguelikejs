@@ -11,31 +11,32 @@ $(function(){
         st : function(x) { this.ks[x]=true },
         gt : function(x) { var v = this.ks[x]; this.ks[x] = false; return v; }
     };
-    var descriptors = ["cool", "decent", "lame", "noobesque", "Cursed", ""];
+    var descriptors = ["cool", "decent", "lame", "noobesque", "Cursed"];
     //Note to self - first ones could be highest probability, etc.
     //That would stave off the probability of getting like 20 pokey things in a row
-    var typedescriptions = { "e" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "long pokey thing", "chestplate", "helmet", "legplate", "pair of boots" ],
+    var typedescriptions = { "e" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "long pokey thing", "chestplate", "helmet", "legplates", "pair of boots" ],
                              "p" : ["vial", "potion", "tonic"]
     };
     var finaldescriptors = { "e" : ["of Truth", "of bone","made out of cats", "of Power", "of purity", "of steel", "of bronze", "of iron","of Mythril", "of Light", "of kittenfur"],
                              "p" : ["of Healing"] //uhm... h..m...
     };
 
-    var keys=[], seen=[], stairup = stairdown = {x:0, y:0}, actionkeys = [65, 87, 68, 83], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
+    var keys=[], seen=[], actionkeys = [65, 87, 68, 83], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
 
     while (t++<=255) keys[t] = false;
 
     $(document).keydown (
         function(e){
-            console.log(e.which);
-            keys[e.which]=true;
+            t = e.which;
+            keys[t]=true;
+            kOff.st(t);
+            gameLoop();
         }
     );
     $(document).keyup (
         function(e){
             t = e.which;
             keys[t]=false;
-            kOff.st(t);
         }
     );
 
@@ -154,6 +155,7 @@ $(function(){
                     if (intersect(Character, items[i])){
                          if (items[i].cls == "$"){
                             items[i].use();
+                            items.splice(i,1); //TODO: code duplication --sorta :: BAD (maybe have an "in inventory" flag?)
                             writeStatus("You have "+Character.money+"G.");
                             break;
                          } else writeStatus("A " + items[i].getname() + " rolls under your feet.");
@@ -166,7 +168,7 @@ $(function(){
                 writeBoard();
             }
         }
-        $("#hlth").html("HP: " + Character.HP + "/" + Character.maxHP +B+ " LVL: " + Character.LVL +B+ " $: " + Character.money +B+ " DMG: " + Character.DMG + "-" + Character.DMX + B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ " STR: " + Character.STR +B+ " AC: " + Character.AC +B+ " CON: " + Character.CON +B+ " AGL: " + Character.AGL +B+ " Dungeon LVL:" + curlevel +B);
+        $("#hlth").html(" $: " + Character.money +B+ " LVL: " + Character.LVL +B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " DMG: " + Character.DMG + "-" + Character.DMX + B+  " STR: " + Character.STR +B+" CON: " + Character.CON +B+ " AGL: " + Character.AGL +B+" AC: " + Character.AC +B+ " Dungeon LVL:" + curlevel +B);
     }
 
     function writeStatus(status){
@@ -184,8 +186,9 @@ $(function(){
             $(".board").append("<span id='"+i+"F"+j+"'>P</span>"); 
         $(".board").append("<br>");
         } 
-        setInterval(gameLoop,90);
+        gameLoop();
         writeBoard();
+        
     }
     function bounded(x){
         return x>=0 && x<sz;
@@ -235,12 +238,10 @@ $(function(){
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
                 if (vis[i][j] != "x"){ 
-                    //TODO: This massively slows down Firefox
                     if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
                     //wrap everything with span
                     var cs = { ".":"gray", "_":bl="black","C":"red", "j":"blue","$":"gold","a":"cyan" }; 
                     var bcs = { "_":"gray", ".":"white", "&nbsp;":"black" }; 
-                    //console.log("#"+i+"F"+j);
                     
 
                 }
@@ -276,7 +277,7 @@ $(function(){
     var m = {//83:function(){writeStatus("You have " + Character.HP + "/" + Character.maxHP + " HP.<br> You have been playing for " + moves + " moves.")},
         80:pickupItem,
         82:function(){writeStatus("You take a quick nap."); resting = true;},
-        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, al monsters freeze in place. ");showInventory = true;},
+        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; },
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         190:function(){if (pc == ">") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel);} else {writeStatus("There's no staircase here.");} },
         188:function(){if (pc == "<") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel); } else {writeStatus("There's no staircase here.");} }
@@ -341,7 +342,7 @@ $(function(){
             t = this.cls = relem(["p", "e", "$", "?"])
 
             if (t == "$"){
-                this.spec["money"] = rnd(curlevel, (1+curlevel)*7);
+                this.spec["money"] = -rnd(curlevel, (1+curlevel)*7);
             }
             if (t == "?"){
                 do {this.id = rnd(0,scrolltypes.length);} while (scrolltypes[this.id].lv > curlevel);
@@ -395,7 +396,7 @@ $(function(){
                     if (c=="e") writeStatus("You unwield the object.");
                 }
             }
-            return (c == "p" || c=="?"); //destroy
+            return (c == "$" || c == "p" || c=="?"); //destroy
         }
         this.init(); 
     }
@@ -429,7 +430,7 @@ $(function(){
                 var d = dodmg(Character,this);
                 this.follow=1;
                 this.HP -= d;
-                writeStatus("You deal " + d + " damage");
+                writeStatus("You deal " + d + " damage.");
                 if (this.HP > 0 || this.AGL > Character.AGL){
                     
                     writeStatus("Holy crap! The " + ms[this.z].nm + " deals"+ (t = dodmg(this,Character)) +"damage!"); //WRONG
