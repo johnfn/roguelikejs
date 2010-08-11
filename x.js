@@ -24,7 +24,7 @@ $(function(){
                              "p" : ["of Healing"] //uhm... h..m...
     };
 
-    var keys=[], vis=[], seen=[], actionkeys = [65, 87, 68, 83, 188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = 0, statschange = false , statpoints = 15, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
+    var keys=[], vis=[], seen=[], actionkeys = [65, 87, 68, 83, 188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
 
     while (t++<=255) keys[t] = false;
 
@@ -129,8 +129,8 @@ $(function(){
                     "(S/s)trength:" + Character.STR + B + 
                     "(C/c)onstitution:" + Character.CON + B + "");
             
-            writeStatus( statpoints + " points left.");
-            for (x in t) if (keys[x]) Character[t[x]]++, statpoints--;
+      
+            for (x in t) if (keys[x]) {Character[t[x]]++, statpoints--; writeStatus( statpoints + " points left.");}
             if (statpoints <= 0 ){statschange = false; writeBoard(); } 
             return;
         }
@@ -140,10 +140,10 @@ $(function(){
             Character.maxHP += Character.LVL*2+1;
             Character.LVL++;
             writeStatus("<span style='color:red'>Level up! Hit L to adjust your new stats.</span>");
-            statpoints = 1;
+            statpoints++;
         }
         if (showInventory){
-            writeks({"Enter":" Use","E":"xamine","I":" close Inventory","D":"rop"});
+            writeks({"Enter":" Use","E":"xamine","ESC":" close Inventory","D":"rop"});
             getInventoryKeys(); 
             Inventory.write();
             if (!showInventory) ssXY(), writeBoard();
@@ -387,7 +387,7 @@ $(function(){
             if (t== "e"){
                 //x to y damage
                 //+N to strength
-                d2=rnd(0,typedescriptions["e"].length);
+                d2=rnd(0,typedescriptions["e"].length-1);
                 if (d2<8){ 
                     this.spec["DMX"] = (this.spec["DMG"]= rnd(1+curlevel, 2*curlevel+4)) + rnd(1,2+3*(1+curlevel));
                     this.spec["STR"] = max(0,rnd(0,100)-95);
