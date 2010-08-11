@@ -24,7 +24,7 @@ $(function(){
                              "p" : ["of Healing"] //uhm... h..m...
     };
 
-    var keys=[], vis=[], seen=[], actionkeys = [65, 87, 68, 83, 188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = snark = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
+    var keys=[], vis=[], seen=[], actionkeys = [65, 87, 68, 83, 188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
 
     while (t++<=255) keys[t] = false;
 
@@ -55,7 +55,7 @@ $(function(){
     function rsp(l, h){ return l + flr( mrn() * h)}
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function setxy(a, b){a.x = b.x;a.y = b.y}
-    function dodmg(a,b){return max(0,rnd(a.DMG, a.DMX+1)-b.AC+a.STR)} //a hits b
+    function dodmg(a,b){a.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.AC+a.STR); writeStatus(a.n + " hit" + (a.n[0]=="T"?"s":"") +  " for " + t + " damage.")} //a hits b
 
     function relem(x){return x[rnd(0,x.length-1)]} //NEW
 
@@ -124,10 +124,10 @@ $(function(){
             $(".board > span").html("").css("background-color","");
             writeks({"A":"gility","S":"trength","C":"onstitution"});
             t = {65:"AGL",83:"STR",67:"CON"};
-            $("#1F1").html("Adjust your stats: Press the button in () to change. "+B + 
-                    "(A/a)gility :" + Character.AGL + B + 
-                    "(S/s)trength:" + Character.STR + B + 
-                    "(C/c)onstitution:" + Character.CON + B + "");
+            $("#1F1").html("Add to your stats: "+B + 
+                    "(A)gility :" + Character.AGL + B + 
+                    "(S)trength:" + Character.STR + B + 
+                    "(C)onstitution:" + Character.CON + B + "");
             
       
             for (x in t) if (keys[x]) {Character[t[x]]++, statpoints--; writeStatus( statpoints + " points left.");}
@@ -155,7 +155,7 @@ $(function(){
                 resting = !(a || Character.HP == Character.maxHP) 
                 if (resting){
                     for (i in monsters)
-                        if (bounded(monsters[i].x-screenX) && bounded(monsters[i].y-screenY) && vis[monsters[i].x-screenX][monsters[i].y-screenY]=="x") {
+                        if (bounded(monsters[i].x-screenX) && bounded(monsters[i].y-screenY) && vis[monsters[i].x-screenX][monsters[i].y-screenY]) {
                             writeStatus("A nearby monster wakes you!"); resting = false; break;
                         } 
                 }
@@ -208,14 +208,12 @@ $(function(){
     }
 
     function writeBoard(){
-        
-    
     
         var text = [];
         vis = [];
         var html = "";
 
-        vis = rng(size).map(function() {return rng(size).map(fgen(" "))}); 
+        vis = rng(size).map(function() {return rng(size).map(fgen(0))}); 
 
         for (var i=0;i<sz;i++) { 
             text.push([]); 
@@ -242,7 +240,7 @@ $(function(){
                     for (var d=0;d<100;d++){
                         nx=flr( d * (i-x0)/100)+x0, ny = flr(d * (j-y0)/100)+y0;
                         if (nx>16||ny>16) continue;
-                        vis[nx][ny] = "x";
+                        vis[nx][ny] = true;
                         seen[nx+screenX][ny+screenY] = true; //replace t/f with "X""y"
                         if (text[nx][ny] == "#") break;
                     }
@@ -253,21 +251,19 @@ $(function(){
         //TODO consolidate with other thing... 
         
         //console.log(text[ox-screenX][oy-screenY]);
+        
+        console.log(vis); 
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
-                if (vis[i][j] != "x"){ 
+                var cs = { ".":"black", "C":"red", "j":"blue","$":"gold","a":"cyan" }; 
+                var bcs = { ".":"white", "&nbsp;":"black" }; 
+                if (!vis[i][j]){ 
                     if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
-                    //wrap everything with span
-                    var cs = { ".":"black", "C":"red", "j":"blue","$":"gold","a":"cyan" }; 
-                    var bcs = { ".":"white", "&nbsp;":"black" }; 
-                    
-
                 }
                 
                 if ( (t=$("#"+i+"F"+j)).html() != (s=text[i][j])) 
                     t.html(s).css({"color":cs[s] || "black" ,"background-color":bcs[s] || "white" });
-                if ( vis[i][j] != "x" && s == ".") t.css("color","#cccccc");
-                if ( vis[i][j] == "x" && s == ".") t.css("color","black"); //TODO size optimize
+                if (s == ".") t.css("color",vis[i][j] ? "black" : "#cccccc");
             }
         } 
         //console.log($("#"+(ox-screenX)+"F"+(oy-screenY)).html());
@@ -323,7 +319,6 @@ $(function(){
         Inventory.sel += keys[83] - keys[87];
         if (kOff.gt(13)) itemuse();
         if (kOff.gt(68)){
-            console.log("D");
             t=inventory[Inventory.sel];
             setxy(t,Character);
             items.push(t);
@@ -387,15 +382,15 @@ $(function(){
             if (t== "e"){
                 //x to y damage
                 //+N to strength
+                this.d = typedescriptions[t][d2];
                 d2=rnd(0,typedescriptions["e"].length-1);
                 if (d2<8){ 
                     this.spec["DMX"] = (this.spec["DMG"]= rnd(1+curlevel, 2*curlevel+4)) + rnd(1,2+3*(1+curlevel));
                     this.spec["STR"] = max(0,rnd(0,100)-95);
                     this.typ="w";
-                    this.d = typedescriptions[t][d2];
                 } else { 
                     this.spec["AC"]=rsp((d2-7)*2,curlevel*2);
-                    this.typ =this.d= typedescriptions[t][d2];
+                    this.typ =typedescriptions[t][d2];
                 }
                 this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + " "+ (this.identified ? relem(finaldescriptors[t]):"");
             }
@@ -454,26 +449,20 @@ $(function(){
         this.DMX = rsp(this.DMG+1, this.DMG*2);
         this.AGL = 3;
         this.AC = 1;
+        this.n = "The " + ms[this.z].nm;
         this.hsh = rnd(0,1e9);
         this.maxHP = this.HP = ms[this.z].HP * (1+mrn());
         this.follow = ms[this.z].follow == 2;
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
                 //CHECK DEATH (both) -- maybe do that later...
-                var d = dodmg(Character,this);
+                dodmg(Character,this);
                 this.follow=1;
-                this.HP -= d;
-                writeStatus("You deal " + d + " damage.");
-                if (this.HP > 0 || this.AGL > Character.AGL){
-                    
-                    writeStatus("Holy crap! The " + ms[this.z].nm + " deals "+ (t = dodmg(this,Character)) +" damage!"); //WRONG
-                    Character.HP -=t;
-                }
+                if (this.HP > 0 || this.AGL > Character.AGL) dodmg(this,Character);
                 if (this.HP < 0){ 
-                    writeStatus("Holy crap! The monster explodes in a huge explosion of blood! It's really gross!");
+                    writeStatus("Holy crap! "+this.n+" explodes in a huge explosion of blood! It's really gross!");
                     Character.EXP += flr(this.STR * this.maxHP/3)+1;
                     if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.")}
-
                     for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
                 }
 
@@ -483,7 +472,6 @@ $(function(){
                 var op = {x : this.x, y: this.y};
 
                 if (this.follow){ 
-                    //this.x += (t=Character.x-this.x) ==0 ? 0 : (t > 0 ? 1 : -1);
                     this.x != Character.x ? ( this.x>Character.x? this.x--: this.x++):0;
                     this.y != Character.y ? ( this.y>Character.y? this.y--: this.y++):0;
                 } else { 
@@ -493,8 +481,7 @@ $(function(){
                 for (x in monsters) if (this.hsh!=monsters[x].hsh && intersect(this,monsters[x])) setxy(this, op);
                 if (map[this.x][this.y] == "#") setxy(this, op) 
                 if (intersect(this, Character)) {
-                    writeStatus("Holy crap! The " + ms[this.z].nm + " deals "+ (t = dodmg(this,Character)) +" damage!"); 
-                    Character.HP -= t; //TODO obvious code duplication here
+                    dodmg(this,Character); //TODO even better is a recursive call.
                     setxy(this, op) 
                 }
             }
@@ -516,6 +503,7 @@ $(function(){
         STR : 4,
         AC : 1,
         LVL : 1,
+        n : "You",
         rep : (function() { 
             return (this.HP == this.maxHP) ? "@" : (this.HP / this.maxHP).toString()[2]; //Possible bug when YOU ARE DEAD //TODO david said i could optimize this
         })()
@@ -528,10 +516,6 @@ $(function(){
             var inv = ""; 
             $(".board > span").html("").css({"background-color":"","color":""});
             for (i in inventory) $("#"+i+"F0").html((  this.sel==i ? "*" : (inventory[i].equipped ? "+" :  "-"))+ inventory[i].getname() + (inventory[i].equipped ? "[equipped]" : "") );
-            
-            if (!inventory.length) inv = "Dust. "
-            for (var i=0;i<max(sz - inventory.length , 0);i++) inv += "-"
-
             $("#board").html(inv);
         }
 
