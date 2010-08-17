@@ -223,7 +223,7 @@ $(function(){
                 }
             }
         }
-        if (!tr) writeBoard(); //TODO breaks on FF (more?)
+        if (!tr) writeBoard(); 
     }
 
     function writeStatus(status){
@@ -242,7 +242,7 @@ $(function(){
         $(".board").append("<br>");
         } 
         setInterval(gameLoop,90);
-        writeStatus("Some jerk buried the Amulet of Tnarg in this dungeon. Go get it!");
+        writeStatus("Some jerk buried the Amulet of Tnarg in this dungeon. It is your mission to get it!");
 
     }
     function bounded(x){
@@ -305,7 +305,6 @@ $(function(){
                 if (!vis[i][j]) if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
                 
                 if ( (t=$("#"+i+"F"+j)).html() != (s=text[i][j])) {
-                    //debugger;
                     t.html(s).css({"color":cs[s] || "black","background-color":bcs[s] || "white" }); 
                 }
                 
@@ -434,11 +433,11 @@ $(function(){
                 d2=rnd(0,typedescriptions["["].length-1);
                 this.d = typedescriptions[t][d2];
                 if (d2<8){ 
-                    this.spec["DMX"] = (this.spec["DMG"]= rnd(1+curlevel, 2*curlevel+4)) + rnd(1,2+3*(1+curlevel));
+                    this.spec["DMX"] = (this.spec["DMG"]= rnd(2*curlevel, 6*curlevel)) + rnd(1,5+curlevel*2);
                     this.spec["STR"] = max(0,rnd(0,100)-95);
                     this.typ="w";
                 } else { 
-                    this.spec["DEF"]=~~(rsp((d2-7),curlevel)/3)+1;
+                    this.spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
                     this.typ =typedescriptions[t][d2];
                 }
                 this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + " "+ (this.identified ? relem(finaldescriptors[t]):"");
@@ -482,27 +481,33 @@ $(function(){
     //follow: 0 = never. 1 = after attacked. 2 = always, 3 = never moves...
     //if not defined ignore them (flock)
     //lvl = min level to encounter on
-    ms = [{rep : "C", nm : "Cobol", lvl: 1, DMG:7, DMX:7, HP:14, follow:1},
-          {rep : "j", nm : "Jerk", lvl: 2, DMG:2, DMX:6, HP:9, follow:2},
-          {rep : "s", nm : "Slime heap", lvl: 3, DMG:6, DMX:12, HP:20, follow:3}
-    ];
+
+    /*
+     * Store monster properties in a bar delimited string.
+     *
+     * Character|Full name|Minimum level to encounter|Damage (low)|Damage (high)|Hit points|Follow flag
+     */
+    ms = ["C|Cobol|1|5|7|14|1",
+          "j|Jerk|2|2|6|9|2",
+          "s|Slime|3|6|12|20|3"
+         ]
     var MNS=ms.length;
 
 
     function Monster(x, y, l) { 
-        do this.z=rsp(0,MNS); while(ms[this.z].lvl>l) 
-        this.rep = ms[this.z].rep; 
+        do s=this.stats = ms[this.z=rsp(0,MNS)].split("|"); while(this.stats[2]>l);
+        this.rep = s[0]; 
         this.x = x;
         this.y = y;
         this.STR = 0;
-        this.DMG = ms[this.z].DMG;
-        this.DMX = ms[this.z].DMX;
+        this.DMG = s[3]-0;
+        this.DMX = s[4]-0;
         this.AGL = 3;
         this.DEF = 1;
-        this.n = "The " + ms[this.z].nm;
+        this.n = "The " + s[0];
         this.hsh = rnd(0,1e9);
-        this.maxHP = this.HP = ms[this.z].HP * (1+mrn());
-        this.follow = ms[this.z].follow == 2;
+        this.maxHP = this.HP = s[5]; //TODO: Randomize?
+        this.follow = s[6];
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
                 dodmg(Character,this);
