@@ -44,7 +44,7 @@ $(function(){
         }
     );
 
-    mrn = Math.random;
+    mrn = function(){return Math.random()}
     min = Math.min;
     max = Math.max;
     abs = Math.abs;
@@ -78,7 +78,8 @@ $(function(){
         items=[], monsters=[];
         size = buff*2+25* rsp(2,min(l/2+1,16)),roomn = rsp(3*size/40, 8*size/40);
 
-        map = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
+        map=[];a=b=0;while(a++<size){map.push([]);while(b++<size)map[a-1].push("#");b=0}
+        //map = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
         var rooms=[],r, loops=0,cr;
         var t, q;
         nn = roomn = ~~(roomn);
@@ -91,6 +92,7 @@ $(function(){
         for (ro in rooms){
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
+                    //debugger;
                     (q = rnd(0,999)) < 6 ? items.push(new Item(x,y)) :( q < 12 ? monsters.push(new Monster(x,y,l)) : 0); 
                     map[x][y] = ".";
                 }
@@ -120,19 +122,22 @@ $(function(){
             tnarg.x = (dn=relem(rooms)).x+4;
             tnarg.y = dn.y+4;
 
-            //map[tnarg.x][tnarg.y] = "P"; //DEBUG
+            //map[tnarg.x,tnarg.y] = "P"; //DEBUG
             items.push(tnarg);
         }
         //var s = ""; //DEBUG
         //for (var i=0;i<size;i++){ //DEBUG
         //    for (var j=0;j<size;j++){//DEBUG
-        //        s += map[i][j];//DEBUG
+        //        s += map[i,j];//DEBUG
         //    }//DEBUG
         //    s+="<br/>";//DEBUG
         //}//DEBUG
 
         //$("#dbg").html(s); //DEBUG
-        seen= rng(size).map(function(){return rng(size).map(fgen(false))}); 
+        seen=[];a=b=0;
+        while(a++<size){seen.push([]);while(b++<size)seen[a-1].push(false);b=0}
+
+        //seen= rng(size).map(function(){return rng(size).map(fgen(false))}); 
         t = [up,dn];
         Character.x = t[d].x+3+d;
         Character.y = t[d].y+3+d;
@@ -218,7 +223,7 @@ $(function(){
                 }
             }
         }
-        if (!tr) writeBoard();
+        if (!tr) writeBoard(); //TODO breaks on FF (more?)
     }
 
     function writeStatus(status){
@@ -250,7 +255,9 @@ $(function(){
         vis = [];
         var html = "";
 
-        vis = rng(size).map(function() {return rng(size).map(fgen(0))}); 
+        vis=[];a=b=0;while(a++<sz){vis.push([]);while(b++<sz)vis[a-1].push(0);b=0}
+
+        //vis = rng(size).map(function() {return rng(size).map(fgen(0))}); 
 
         for (var i=0;i<sz;i++) { 
             text.push([]); 
@@ -276,6 +283,8 @@ $(function(){
                     for (var d=0;d<100;d++){
                         nx=~~( d * (i-x0)/100)+x0, ny = ~~(d * (j-y0)/100)+y0;
                         if (nx>16||ny>16) continue;
+                        //debugger;
+                        //console.log(vis);
                         vis[nx][ny] = true;
                         seen[nx+screenX][ny+screenY] = true; //replace t/f with "X""y"
                         if (text[nx][ny] == "#") break;
@@ -286,7 +295,8 @@ $(function(){
         
         //TODO consolidate with other thing... 
         
-        //console.log(text[ox-screenX][oy-screenY]);
+        //console.log(text[ox-screenX,oy-screenY]);
+
         
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
@@ -294,11 +304,16 @@ $(function(){
                 var bcs = { ".":"white", "&nbsp;":"black" }; 
                 if (!vis[i][j]) if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
                 
-                if ( (t=$("#"+i+"F"+j)).html() != (s=text[i][j])) 
-                    t.html(s).css({"color":cs[s] || "black" ,"background-color":bcs[s] || "white" });
+                if ( (t=$("#"+i+"F"+j)).html() != (s=text[i][j])) {
+                    //debugger;
+                    t.html(s).css({"color":cs[s] || "black","background-color":bcs[s] || "white" }); 
+                }
+                
+                //
                 if (s == ".") t.css("color",vis[i][j] ? "black" : "#cccccc");
             }
         } 
+
         //console.log($("#"+(ox-screenX)+"F"+(oy-screenY)).html());
 
 
@@ -306,10 +321,7 @@ $(function(){
         //for (i in text) html += text[i].join("") + B;
 
         //$("#board").html(html);
-    }
-
-
-
+    } 
     function pickupItem(){
         if (inventory.length>15) { writeStatus("You are carrying too much!"); return;} 
         for (i in items){
@@ -495,7 +507,6 @@ $(function(){
             if (intersect(this, Character)) {
                 dodmg(Character,this);
                 this.follow=1;
-                console.log("ding");
                 if (this.HP > 0 || this.AGL > Character.AGL) dodmg(this,Character);
                 if (this.HP < 0){ 
                     writeStatus("Holy crap! "+this.n+" explodes in a huge explosion of blood! It's really gross!");
@@ -554,7 +565,6 @@ $(function(){
      * See also Inventory, Highscore, To-do (if I ever get around to it)
      */
     function writegenericlist(x,s){
-        console.log("ding");
         $(".board > span").html("").css({"background-color":"","color":""});
         for (i in x) $("#"+i+"F0").html(( s==i ? "*" : (x[i].equipped ? "+" :  "-"))+ (x[i].s?x[i].s:"") + x[i].n+ (x[i].equipped ? "[equipped]" : "") );
     }
