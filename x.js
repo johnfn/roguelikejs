@@ -15,14 +15,14 @@ $(function(){
         st : function(x) { this.ks[x]=true },
         gt : function(x) { var v = this.ks[x]; this.ks[x] = false; return v; }
     };
-    var descriptors = ["cool", "decent", "lame", "noobesque", "Cursed"];
+    var descriptors = ["cool", "decent", "lame", "noobesque"];
     //Note to self - first ones could be highest probability, etc.
     //That would stave off the probability of getting like 20 pokey things in a row
     var typedescriptions = { "[" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "pokey thing", "pair of boots", "helmet", "legplates", "chestplate" ],
                              "!" : ["vial", "potion", "tonic"]
     };
-    var finaldescriptors = { "[" : ["of Truth", "of bone","made out of cats", "of Power", "of purity", "of steel", "of bronze", "of iron","of Mythril", "of Light", "of kittenfur"],
-                             "!" : ["of Healing"] //uhm... h..m...
+    var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
+                             "!" : ["Healing", "Strength", "Agility",  ] 
     };
 
     var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
@@ -69,6 +69,26 @@ $(function(){
     }
 
     function generateLevel(l,d){ //d: 0 means down, 1 means up.
+        console.log("senddata");
+        //BEGIN METRICS :: TODO REMOVE FOR FINAL VERSION
+        /*
+        try {
+            var mpmetrics = new MixpanelLib("8ef30ce80ba96d3f512f96de576f1b79");
+        } catch(err) {
+            null_fn = function () {};
+            var mpmetrics = { track: null_fn, track_funnel: null_fn, register: null_fn, register_once: null_fn };
+        }
+
+        mpmetrics.track('Level', {
+           'test' : 1,
+           'Dlevel': l,
+           'direction': d,
+           'Character': Character
+        });
+        */
+
+        //END METRICS
+
         if (l==0){
             for (i in inventory) if (inventory[i].ists) { writeStatus("Holy crap! YOU WIN!"); end(1); return;}
             writeStatus("A mysterious force returns you to the dungeon!"); curlevel=1; return;
@@ -394,10 +414,6 @@ $(function(){
         return change;
     }
 
-    scrolltypes = [ //{name:"Summon Monster", lv : 1},
-                    //{name:"Identify", lv : 1},
-                    {name:"Teleport", lv : 1}
-                    ];
 
 
     var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"}; 
@@ -421,7 +437,6 @@ $(function(){
                 this.spec["money"] = -rnd(curlevel, (1+curlevel)*7);
             }
             if (t == "?"){
-                do {this.id = rnd(0,scrolltypes.length-1);} while (scrolltypes[this.id].lv > curlevel);
                 this.n = "unidentified scroll";
                 //TODO: once you use it once, you know what it does.
             }
@@ -440,33 +455,54 @@ $(function(){
                     this.spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
                     this.typ =typedescriptions[t][d2];
                 }
-                this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + " "+ (this.identified ? relem(finaldescriptors[t]):"");
+                this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + " of "+ (this.identified ? relem(finaldescriptors[t]):"");
             }
             if (t== "!"){
-                this.n = "Potion of thingy";
+                this.n = "Potion " + relem(finaldescriptors[t]);
                 this.spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
             }
             this.n = "A " + this.n;
 
         }
         this.use = function() {
-            var s=this.spec,c=this.cls;
+            var s=this.spec,c=this.cls, fb="You feel better.";
             if (c=="?"){
                 writeStatus("You read the scroll.");
                 showInventory = false;
                 //for now, just teleport.
-                var x,y;
-                do{
-                    x = rsp(0,size);
-                    y = rsp(0,size);
-                } while (map[x][y] == "#");
-                Character.x=x;
-                Character.y=y;
-                writeStatus("Your surroundings appear different!");
+                var r=rnd(0,100);
+                console.log(r);
+                if (r>70){ 
+                    var x,y;
+                    do{
+                        x = rsp(0,size);
+                        y = rsp(0,size);
+                    } while (map[x][y] == "#");
+                    Character.x=x;
+                    Character.y=y;
+                    writeStatus("Hm...Where are you?");
+                    return;
+                } 
+                (r>65) ?
+                    (Character.money += (t=rsp(5,100)),
+                    writeStatus("The scroll turns into gold!"))
+                : (r>50) ? 
+                    (Character.HP += 30,
+                    writeStatus(fb))
+                : (r>35)?
+                    (Character.HP -= 10,
+                    writeStatus("OUCH!"))
+                : (r>30)?
+                    (statpoints++,
+                    writeStatus("You gain a stat point! (L)"))
+                : (r>20) ?
+                    (writeStatus("You feel experienced."),
+                    Character.EXP+=10)
+                :  (writeStatus("Nothing happens."))
             } else {
                 if (this.equipped) { 
                     for (x in s) Character[x] += s[x] != null ? s[x] : 0;
-                    if (c=="!") writeStatus("You drink the potion. Yummy! +" + s["HP"] + "HP");
+                    if (c=="!") writeStatus(fb);
                     if (c=="[") writeStatus("You wield the object. You can't wait to pwn some noobs.");
                 } else { 
                     for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
@@ -485,11 +521,15 @@ $(function(){
     /*
      * Store monster properties in a bar delimited string.
      *
-     * Character|Full name|Minimum level to encounter|Damage (low)|Damage (high)|Hit points|Follow flag
+     * Character|Full name|Minimum level to encounter|Damage (low)|Damage (high)|Hit points|Follow flag|Agility
+     *
+     * Special notes about AGL: AGL determines how fast a monster can move compared to you. 5 means just as fast. 0 means never moves. 9 means doublespeed, almost.
      */
-    ms = ["C|Cobol|1|5|7|14|1",
-          "j|Jerk|2|2|6|9|2",
-          "s|Slime|3|6|12|20|3"
+    ms = ["C|cobol|1|5|3|14|0|3",
+          "r|rat|1|2|3|8|1|4",
+          "g|goblin|1|3|4|16|1",
+          "j|jerk|2|2|6|9|2",
+          "s|slime|3|6|12|20|3"
          ]
     var MNS=ms.length;
 
@@ -500,14 +540,14 @@ $(function(){
         this.x = x;
         this.y = y;
         this.STR = 0;
-        this.DMG = s[3]-0;
+        this.DMG = s[3]-0; // almost certainly the shortest way to cast to int
         this.DMX = s[4]-0;
-        this.AGL = 3;
+        this.AGL = s[7]-0;
         this.DEF = 1;
-        this.n = "The " + s[0];
+        this.n = "The " + s[1];
         this.hsh = rnd(0,1e9);
         this.maxHP = this.HP = s[5]; //TODO: Randomize?
-        this.follow = s[6];
+        this.follow = s[6]-0;
         this.update = function(oldPosition) {
             if (intersect(this, Character)) {
                 dodmg(Character,this);
@@ -515,30 +555,32 @@ $(function(){
                 if (this.HP > 0 || this.AGL > Character.AGL) dodmg(this,Character);
                 if (this.HP < 0){ 
                     writeStatus("Holy crap! "+this.n+" explodes in a huge explosion of blood! It's really gross!");
-                    Character.EXP += ~~(this.STR * this.maxHP/3)+1;
+                    Character.EXP += ~~Math.sqrt(this.maxHP*this.DMG/9)+1;
                     if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.")}
                     for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
                 }
 
                 setxy(Character, oldPosition);
             } else { 
-                if (this.follow==3) return;
-                var op = {x : this.x, y: this.y};
-
                 with(this){ 
-                    if (follow){ 
-                        x != Character.x ? ( x>Character.x? x--: x++):0;
-                        y != Character.y ? ( y>Character.y? y--: y++):0;
-                    } else { 
-                        x += rnd(0,2)-1;
-                        y += rnd(0,2)-1;
-                    }
-                    for (i in monsters) if (hsh!=monsters[i].hsh && intersect(this,monsters[i])) setxy(this, op);
-                    if (map[x][y] == "#") setxy(this, op) 
-                    if (intersect(this, Character)) {
-                        dodmg(this,Character); //TODO even better is a recursive call.
-                        x=op.x;
-                        y=op.y;
+                    if (this.follow==3) return;
+                    var mvs = ~~(AGL/5) + ~~((AGL%5+rnd(0,5))/5);
+                    for (var i=0;i<mvs;i++){ 
+                        var op = {x : this.x, y: this.y};
+                        if (follow && abs(Character.x - x) + abs(Character.y - y) < 16){ 
+                            x != Character.x ? ( x>Character.x? x--: x++):0;
+                            y != Character.y ? ( y>Character.y? y--: y++):0;
+                        } else { 
+                            x += rnd(0,2)-1;
+                            y += rnd(0,2)-1;
+                        }
+                        for (i in monsters) if (hsh!=monsters[i].hsh && intersect(this,monsters[i])) setxy(this, op);
+                        if (map[x][y] == "#") setxy(this, op) 
+                        if (intersect(this, Character)) {
+                            dodmg(this,Character); //TODO even better is a recursive call.
+                            x=op.x;
+                            y=op.y;
+                        }
                     }
                 }
             }
@@ -554,10 +596,10 @@ $(function(){
         DMG : 2, 
         DMX : 5, 
         AGL : 4,
-        EXP : 10, //FIXME 
+        EXP : 0, 
         NXT : 10,
         CON : 2,
-        STR : 4,
+        STR : 2,
         DEF : 1,
         LVL : 1,
         n : "You",
