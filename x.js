@@ -22,10 +22,10 @@ $(function(){
                              "!" : ["vial", "potion", "tonic"]
     };
     var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["Healing", "Strength", "Agility"  ] 
+                             "!" : ["Regeneration", "Poison", "Strength", "Constitution","Defense"] 
     };
 
-    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition;
+    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={};
 
     while (t++<=255) keys[t] = false;
 
@@ -56,17 +56,30 @@ $(function(){
 
     function relem(x){return x[rnd(0,x.length-1)]} 
 
+    /*
+     * end(w)
+     *
+     * Called after the death of a character. Dumps score to localstorage and writes out a high score table.
+     *
+     * Quite a feat in code condensing, if I may say so myself.
+     */
     function end(w){
-        Character.HP=0;
-        tr=true, t=0,scr=[];
-        l=localStorage;
+        tr=true, t=0,scr=[],l=localStorage;
         while (l["h"+t+"s"]) scr.push({"n":l["h"+t+"n"],"s":l["h"+t+"s"]}), t++; 
         scr.push({"n":"<b>"+(l["h"+t+"n"]=": You")+"</b>","s":l["h"+t+"s"]=curlevel*10+Character.EXP});
         scr.sort(function(a,b){return a[1]-b[1]});
         writegenericlist(scr,0);
     }
 
-    function generateLevel(l,d){ //d: 0 means down, 1 means up.
+    /*
+     * generateLevel: Generates the lth level with appropriately positioned items and monsters.
+     * d: 0 if you are going down, 1 if you are going up.
+     *
+     * Currently, I don't think that this function is correctly generating the MST. However, it doesn't
+     * really matter; the user can't really tell.
+     *
+     */
+    function generateLevel(l,d){ 
         //BEGIN METRICS :: TODO REMOVE FOR FINAL VERSION
         /*
         try {
@@ -111,7 +124,7 @@ $(function(){
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
                     //debugger;
-                    (q = rnd(0,999)) < 6 ? items.push(new Item(x,y)) :( q < 12 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    (q = rnd(0,999)) < 11 ? items.push(new Item(x,y)) :( q < 12 ? monsters.push(new Monster(x,y,l)) : 0); 
                     map[x][y] = ".";
                 }
             }
@@ -170,6 +183,11 @@ $(function(){
         oldPosition = {x : Character.x, y : Character.y } ; 
     }
 
+    /*
+     * writeks(d)
+     *
+     * Writes the keys that you can press to screen.
+     */
 
     function writeks(d){
         var s="";
@@ -177,6 +195,12 @@ $(function(){
             s += " <b>"+k+"</b>:" + d[k]+ " |";
         $("#ks").html(s+B);
     }
+    /*
+     * gameLoop()
+     *
+     * Takes care of most of the game logic, including odds and ends that it wasn't worth to decompose into functions.
+     *
+     */
     function gameLoop(){
         if (tr) { $("#c").html("Highscore"); return; }
         oldPosition = {x : Character.x, y : Character.y } ; 
@@ -186,6 +210,9 @@ $(function(){
         //summation from 1 to character's level of (4+i)
         Character.maxHP = Character.CON*7 + 10*Character.LVL; 
 
+         for (i in items){ items[i].N() } //TODO a little bit of code duplication here.
+         for (i in inventory){ inventory[i].N() } 
+
         Character.HP=min(Character.HP,Character.maxHP);
         $("#hlth").html(" $: " + Character.money +B+ " LVL: " + Character.LVL +B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " DMG: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " STR: " +t  +B+" CON: " + Character.CON +B+ " DEF: " + Character.DEF +B+ " Dungeon LVL:" + curlevel +B);
         if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
@@ -193,7 +220,7 @@ $(function(){
             $("#board > span").html("").css("background-color","");
             writeks({"D":"efense","S":"trength","C":"onstitution"});
             t = {68:"DEF",83:"STR",67:"CON"};
-            $("#1F1").html("Gain a stat: "+ "(D)efense (S)trength (C)onstitution." );
+            $("#1F1").html("Gain a stat: (D)efense (S)trength (C)onstitution." );
             
       
             for (x in t) if (keys[x]) {Character[t[x]]++; writeStatus(--statpoints + " points left.");}
@@ -220,6 +247,15 @@ $(function(){
                 a = getKeys();
                 pc=map[Character.x][Character.y]; 
                 if (a || resting) { 
+                    for (V in queue){
+                        t=queue[V]
+                        if (t.t--<0){
+                            queue.splice(V, 1);
+                            if (t.rel) t.v*=-1; t.rel=0;
+                        }
+                        if (!t.rel) Character[t.s]+=t.v;
+                    }
+
                     resting = !(a || Character.HP == Character.maxHP) 
                     moves++;
                     Character.HP += resting + (moves%REGENRATE==0 && Character.HP != Character.maxHP)
@@ -251,13 +287,18 @@ $(function(){
         if (!tr) writeBoard(); 
     }
 
+    /*
+     * writeStatus: Adds a new status to the list and pops the old one.
+     *
+     */
     function writeStatus(status){
         //bold top status
-        if (resting) return;
-        var ar = $("#status").html().split(">");
-        ar.push(status+B); 
-        ar.shift();
-        $("#status").html( ar.join(">") );
+        if (!resting) {
+            var ar = $("#status").html().split(">");
+            ar.push(status+B); 
+            ar.shift();
+            $("#status").html( ar.join(">") );
+        }
     }
 
     function initialize(){
@@ -363,7 +404,6 @@ $(function(){
     var m = {//83:function(){writeStatus("You have " + Character.HP + "/" + Character.maxHP + " HP.<br> You have been playing for " + moves + " moves.")},
         71:pickupItem,
         82:function(){ 
-        
             writeStatus("You take a quick nap."); resting = true;
         },
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; kOff.gt(68)}, //TODO: THIS IS A HACK. FIX IT.
@@ -372,18 +412,28 @@ $(function(){
         188:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
         190:function(){if (pc == ">") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel,1); } else {writeStatus("There's no staircase here.");} }
     };
+    /*
+     * itemuse()
+     *
+     * A helper function that mostly manages the inventory settings equpping, and removing consumable items from the inventory list
+     */
     function itemuse(){
         var a=inventory[is];
         if (!a.equipped){
             //about to equip
             if ((a.cls=="["&&wielding[a.typ])) { writeStatus("You can't wield another item of that type."); return;}
         }
-        a.cls=="["?wielding[a.typ] = !wielding[a.typ]:0;
+        wielding[a.typ] = !wielding[a.typ]; //This accounts not only for weapons and armor, but also for seen items (e.g. potions).
         a.equipped = !a.equipped;
         if (inventory[is].use()){
             inventory.splice(is, 1);
         }
     }
+    /*
+     * getInventoryKeys()
+     *
+     * The inventory has a special key handler. This might be abstractable; I'm not sure what the gains would be, though.
+     */
     function getInventoryKeys(){
         is += keys[83] - keys[87];
         keys[83]=keys[87]=false;
@@ -407,65 +457,91 @@ $(function(){
     }
 
 
+    /*
+     * getKeys()
+     *
+     * Moves the character and consults a dictionary lookup to run special actions on keypress.
+     */
     function getKeys(){
         Character.x += max(-1, min(1, -keys[69] - keys[81] +keys[90] + keys[67] + keys[83] - keys[87]));
         Character.y += max(-1, min(1, keys[68] - keys[65] - keys[81] + keys[69] - keys[90] + keys[67]));
         for (i in m) if (kOff.gt(i)) m[i]();
 
         var change = false;
-        for (i in actionkeys) change |= keys[actionkeys[i]]; 
+        for (i in actionkeys) change |= keys[actionkeys[i]],keys[actionkeys[i]]=0; 
         
-        keys[83]=keys[87]=keys[68]=keys[65]=keys[69]=keys[90]=keys[81]=keys[67]=false;//TODO
         return change;
     }
 
 
+    /*
+     * effect(t)
+     *
+     * Gives the character a certain status ailment (or benefit).
+     *
+     * Abstracted out so monsters can poison!
+     */
+    function effect(t){
+        var ns = {t:15,rel:1,s:"STR",v:1,n:"+STR"};
+        ns.n = t;
+        
+        if(t[0]=="P")ns.s="HP", ns.rel=0, ns.v=-1;
+        if(t[0]=="R")ns.s="HP", ns.rel=0;
+        t[0]=="C"? ns.s="CON":0;
+        t[0]=="D"? ns.s="DEF":0;
+
+        Character[ns.s] += ns.v; //First use for relative buffs (like regen) and ONLY use for nonrelative buffs (+1 STR etc)
+        queue.push(ns);
+    }
 
     var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"}; 
     function Item(x, y){
         this.x=x;
         this.y=y;
-        this.id=0;
         this.cls = "";
         this.equipped = false;
         this.spec = {}; 
+        this.N=function(){
+            this.n= this.cls=="!"? "A potion of " + (this.typ in wielding ? this.typ : "mystery" ) : this.n;
+        } 
         this.n = "";
         this.typ="";
         this.d="";
         this.init = function() { 
-            
-            t = this.cls = relem(["!", "[", "$", "?"])
+            with(this){      
+                t = cls = "!"; //relem(["!", "[", "$", "?"]) //FIXME
 
-            if (t == "$"){
-                this.spec["money"] = -rnd(curlevel, (1+curlevel)*7);
-            }
-            if (t == "?"){
-                this.n = "unidentified scroll";
-                //TODO: once you use it once, you know what it does.
-            }
-
-            var d2;
-            if (t== "["){
-                //x to y damage
-                //+N to strength
-                d2=rnd(0,typedescriptions["["].length-1);
-                this.d = typedescriptions[t][d2];
-                if (d2<8){ 
-                    this.spec["DMX"] = (this.spec["DMG"]= rnd(2*curlevel, 6*curlevel)) + rnd(1,5+curlevel*2);
-                    this.spec["STR"] = max(0,rnd(0,100)-95);
-                    this.typ="w";
-                } else { 
-                    this.spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
-                    this.typ =typedescriptions[t][d2];
+                if (t == "$"){
+                    spec["money"] = -rnd(curlevel, (1+curlevel)*7);
                 }
-                this.n=  relem(descriptors)  + " " +  this.d +  " of "+relem(finaldescriptors[t]);
-            }
-            if (t== "!"){
-                this.n = "Potion of " + relem(finaldescriptors[t]);
-                this.spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
-            }
-            this.n = "A " + this.n;
+                if (t == "?"){
+                    n = "unidentified scroll";
+                    //TODO: once you use it once, you know what it does.
+                }
 
+                var d2;
+                if (t== "["){
+                    //x to y damage
+                    //+N to strength
+                    d2=rnd(0,typedescriptions["["].length-1);
+                    d = typedescriptions[t][d2];
+                    if (d2<8){ 
+                        spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 6*curlevel)) + rnd(1,5+curlevel*2);
+                        spec["STR"] = max(0,rnd(0,100)-95);
+                        typ="w";
+                    } else { 
+                        spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
+                        typ =typedescriptions[t][d2];
+                    }
+                    n=  relem(descriptors)  + " " +  d +  " of "+relem(finaldescriptors[t]);
+                }
+                if (t== "!"){
+                    typ = relem(finaldescriptors[t]);
+                    spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
+                }
+                n = "A " + n;
+
+            }
         }
         this.use = function() {
             var s=this.spec,c=this.cls, fb="You feel better.";
@@ -486,7 +562,7 @@ $(function(){
                     writeStatus("Hm...Where are you?");
                     return;
                 } 
-                (r>65) ?
+                (r>65) ? //TODO THIS IS MAJORLY ABSTRACTABLE, much in the same way as potions O_O they are almost the same...
                     (Character.money += (t=rsp(5,100)),
                     writeStatus("The scroll turns into gold!"))
                 : (r>50) ? 
@@ -505,7 +581,13 @@ $(function(){
             } else {
                 if (this.equipped) { 
                     for (x in s) Character[x] += s[x] != null ? s[x] : 0;
-                    if (c=="!") writeStatus(fb);
+                    if (c=="!") {
+                        //Potion types: ["Regeneration", "Poison", "Strength", "Constitution","Defense"]
+                        effect(t=this.typ);
+
+                        writeStatus("The potion tastes like " + t + "!"); //Heheheh 
+                        //queue.push({t:15,rel:0,s:"HP",v:-1,n:"poison"});
+                    }
                     if (c=="[") writeStatus("You wield the object. You can't wait to pwn some noobs.");
                 } else { 
                     for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
@@ -552,8 +634,6 @@ $(function(){
         this.maxHP = this.HP = s[5]; //TODO: Randomize?
         this.follow = s[6]-0;
         this.update = function(oldP) {
-
-
             if (intersect(this, Character)) {
                 dodmg(Character,this);
                 this.follow=1;
@@ -609,21 +689,29 @@ $(function(){
         LVL : 1,
         n : "You",
         rep : function() { 
-            return (this.HP == this.maxHP) ? "@" : (this.HP / this.maxHP).toString()[2]; //Possible bug when YOU ARE DEAD //TODO david said i could optimize this
+            return (this.HP == this.maxHP) ? "@" : (this.HP / this.maxHP).toString()[2];
         }
     };
 
     /* Generically writes a list to screen.
-     * See also Inventory, Highscore, To-do (if I ever get around to it)
+     * See also Inventory, Highscore, To-do (if I ever get around to it...which I didn't)
      */
     function writegenericlist(x,s){
         $("#board > span").html("").css({"background-color":"","color":""});
         for (i in x) $("#"+i+"F0").html(( s==i ? "*" : (x[i].equipped ? "+" :  "-"))+ (x[i].s?x[i].s:"") + x[i].n+ (x[i].equipped ? "[equipped]" : "") );
     }
 
+    /*
+     * ssXY()
+     *
+     * Sets the position of the screen as to follow the character.
+     *
+     * I suspect that this function shouldn't need to be called from as many places as it is (3).
+     *
+     */
     function ssXY(){
-        screenX = min( max(0, Character.x - sz/2), size - sz);
-        screenY = min( max(0, Character.y - sz/2), size - sz);
+        screenX = Character.x - sz/2;
+        screenY = Character.y - sz/2;
     }
 
     generateLevel(1,0);
