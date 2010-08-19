@@ -10,13 +10,6 @@ $(function(){
 //15861-->15803 (7507 packed)
 //21549
 
-
-    var rr = Math.random();
-    Math.seedrandom(rr);
-
-
-    console.log(rr);
-
     var kOff = { 
         ks : [],
         st : function(x) { this.ks[x]=true },
@@ -29,7 +22,7 @@ $(function(){
                              "!" : ["vial", "potion", "tonic"]
     };
     var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["Healing", "Strength", "Agility",  ] 
+                             "!" : ["Healing", "Strength", "Agility"  ] 
     };
 
     var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition;
@@ -55,8 +48,6 @@ $(function(){
     min = Math.min;
     max = Math.max;
     abs = Math.abs;
-    function fgen(r){return function(){return r;}} //My masterpiece  //TODO BOTH OF THESE UNUSED?
-    function rng(x) {if(!x)return[0];var zQ=rng(x-1);zQ.push(x-1);return zQ;} //Here we go...
     function rnd(l, h){return l + ~~( mrn() * (h-l+1))}
     function rsp(l, h){return l + ~~( mrn() * h)}
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
@@ -154,6 +145,7 @@ $(function(){
             items.push(tnarg);
         }
 
+        /*
         var s = ""; //DEBUG
         for (var i=0;i<size;i++){ //DEBUG
             for (var j=0;j<size;j++){//DEBUG
@@ -165,6 +157,7 @@ $(function(){
         $("#dbg").html(s); //DEBUG
         //debugger; 
         
+        */
         
         seen=[];a=b=0;
         while(a++<size){seen.push([]);while(b++<size)seen[a-1].push(false);b=0}
@@ -197,7 +190,7 @@ $(function(){
         $("#hlth").html(" $: " + Character.money +B+ " LVL: " + Character.LVL +B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " DMG: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " STR: " +t  +B+" CON: " + Character.CON +B+ " DEF: " + Character.DEF +B+ " Dungeon LVL:" + curlevel +B);
         if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
         if (statschange) { 
-            $(".board > span").html("").css("background-color","");
+            $("#board > span").html("").css("background-color","");
             writeks({"D":"efense","S":"trength","C":"onstitution"});
             t = {68:"DEF",83:"STR",67:"CON"};
             $("#1F1").html("Gain a stat: "+ "(D)efense (S)trength (C)onstitution." );
@@ -270,8 +263,8 @@ $(function(){
     function initialize(){
         for (var i=0;i<sz;i++) { 
           for (var j=0;j<sz;j++) 
-            $(".board").append("<span id='"+i+"F"+j+"'>P</span>"); 
-        $(".board").append("<br>");
+            $("#board").append("<span id='"+i+"F"+j+"'>P</span>"); 
+        $("#board").append("<br>");
         } 
         setInterval(gameLoop,90);
         writeStatus("Some jerk buried the Amulet of Tnarg in this dungeon. It is your mission to get it!");
@@ -434,14 +427,12 @@ $(function(){
         this.y=y;
         this.id=0;
         this.cls = "";
-        this.identified = false;
         this.equipped = false;
         this.spec = {}; 
         this.n = "";
         this.typ="";
         this.d="";
         this.init = function() { 
-            this.identified = mrn() > .5;
             
             t = this.cls = relem(["!", "[", "$", "?"])
 
@@ -467,7 +458,7 @@ $(function(){
                     this.spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
                     this.typ =typedescriptions[t][d2];
                 }
-                this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + (this.identified ?  " of "+relem(finaldescriptors[t]):"");
+                this.n=  relem(descriptors)  + " " +  this.d +  " of "+relem(finaldescriptors[t]);
             }
             if (t== "!"){
                 this.n = "Potion of " + relem(finaldescriptors[t]);
@@ -626,7 +617,7 @@ $(function(){
      * See also Inventory, Highscore, To-do (if I ever get around to it)
      */
     function writegenericlist(x,s){
-        $(".board > span").html("").css({"background-color":"","color":""});
+        $("#board > span").html("").css({"background-color":"","color":""});
         for (i in x) $("#"+i+"F0").html(( s==i ? "*" : (x[i].equipped ? "+" :  "-"))+ (x[i].s?x[i].s:"") + x[i].n+ (x[i].equipped ? "[equipped]" : "") );
     }
 
@@ -635,7 +626,7 @@ $(function(){
         screenY = min( max(0, Character.y - sz/2), size - sz);
     }
 
-    generateLevel(2,0);
+    generateLevel(1,0);
     ssXY();
     initialize(); 
 
