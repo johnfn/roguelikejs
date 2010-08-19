@@ -10,6 +10,13 @@ $(function(){
 //15861-->15803 (7507 packed)
 //21549
 
+
+    var rr = Math.random();
+    Math.seedrandom(rr);
+
+
+    console.log(rr);
+
     var kOff = { 
         ks : [],
         st : function(x) { this.ks[x]=true },
@@ -25,7 +32,7 @@ $(function(){
                              "!" : ["Healing", "Strength", "Agility",  ] 
     };
 
-    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={};
+    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition;
 
     while (t++<=255) keys[t] = false;
 
@@ -48,7 +55,7 @@ $(function(){
     min = Math.min;
     max = Math.max;
     abs = Math.abs;
-    function fgen(r){return function(){return r;}} //My masterpiece  
+    function fgen(r){return function(){return r;}} //My masterpiece  //TODO BOTH OF THESE UNUSED?
     function rng(x) {if(!x)return[0];var zQ=rng(x-1);zQ.push(x-1);return zQ;} //Here we go...
     function rnd(l, h){return l + ~~( mrn() * (h-l+1))}
     function rsp(l, h){return l + ~~( mrn() * h)}
@@ -69,7 +76,6 @@ $(function(){
     }
 
     function generateLevel(l,d){ //d: 0 means down, 1 means up.
-        console.log("senddata");
         //BEGIN METRICS :: TODO REMOVE FOR FINAL VERSION
         /*
         try {
@@ -79,14 +85,15 @@ $(function(){
             var mpmetrics = { track: null_fn, track_funnel: null_fn, register: null_fn, register_once: null_fn };
         }
 
+        $("#dbg").html( $("#dbg").html() + B + "DLevel: " + l + " Dir: " + d + " STR: " + Character.STR + " CON: " + Character.CON + " DHI: " + Character.DMX + " CLVL: " + Character.LVL + " EXP: " + Character.EXP);
         mpmetrics.track('Level', {
            'test' : 1,
            'Dlevel': l,
            'direction': d,
            'Character': Character
         });
-        */
 
+        */
         //END METRICS
 
         if (l==0){
@@ -96,7 +103,7 @@ $(function(){
         var buff=8;
         curlevel=l;
         items=[], monsters=[];
-        size = buff*2+25* rsp(2,min(l/2+1,16)),roomn = rsp(3*size/40, 8*size/40);
+        size = buff*2+25* rsp(2,min(l/2+1,16)),roomn = rsp(2*size/40, 6*size/40);
 
         map=[];a=b=0;while(a++<size){map.push([]);while(b++<size)map[a-1].push("#");b=0}
         //map = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
@@ -135,6 +142,7 @@ $(function(){
             while(b!=rooms[ro].y) map[a][b>rooms[ro].y?b--:b++]="."; 
         }
 
+
         map[(up=relem(rooms)).x+3][up.y+3] = ">";
         if (curlevel != 15){ 
             map[(dn=relem(rooms)).x+4][dn.y+4] = "&lt;";
@@ -145,15 +153,19 @@ $(function(){
             //map[tnarg.x,tnarg.y] = "P"; //DEBUG
             items.push(tnarg);
         }
-        //var s = ""; //DEBUG
-        //for (var i=0;i<size;i++){ //DEBUG
-        //    for (var j=0;j<size;j++){//DEBUG
-        //        s += map[i,j];//DEBUG
-        //    }//DEBUG
-        //    s+="<br/>";//DEBUG
-        //}//DEBUG
 
-        //$("#dbg").html(s); //DEBUG
+        var s = ""; //DEBUG
+        for (var i=0;i<size;i++){ //DEBUG
+            for (var j=0;j<size;j++){//DEBUG
+                s += map[i][j];//DEBUG
+            }//DEBUG
+            s+="<br/>";//DEBUG
+        }//DEBUG
+
+        $("#dbg").html(s); //DEBUG
+        //debugger; 
+        
+        
         seen=[];a=b=0;
         while(a++<size){seen.push([]);while(b++<size)seen[a-1].push(false);b=0}
 
@@ -161,6 +173,8 @@ $(function(){
         t = [up,dn];
         Character.x = t[d].x+3+d;
         Character.y = t[d].y+3+d;
+
+        oldPosition = {x : Character.x, y : Character.y } ; 
     }
 
 
@@ -172,9 +186,7 @@ $(function(){
     }
     function gameLoop(){
         if (tr) { $("#c").html("Highscore"); return; }
-
-
-        var oldPosition = {x : Character.x, y : Character.y } ; 
+        oldPosition = {x : Character.x, y : Character.y } ; 
         var a = false;
 
         //max HP = 4 * Constitution modifier + 
@@ -289,7 +301,7 @@ $(function(){
 
         for (i in monsters) if(bounded(monsters[i].x - screenX) && bounded(monsters[i].y - screenY)) text[monsters[i].x - screenX][monsters[i].y - screenY] = monsters[i].rep;
 
-        text[Character.x - screenX][Character.y - screenY] = Character.rep;
+        text[Character.x - screenX][Character.y - screenY] = Character.rep();
 
         //Mark visibility
         var x0=Character.x - screenX, y0 = Character.y - screenY;
@@ -320,7 +332,7 @@ $(function(){
         
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
-                var cs = { ".":"black", "C":"red", "j":"blue","$":"gold","[":"cyan" }; 
+                var cs = { ".":"black", "C":"red", "j":"blue","$":"gold","[":"cyan","g":"green"}; 
                 var bcs = { ".":"white", "&nbsp;":"black" }; 
                 if (!vis[i][j]) if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
                 
@@ -455,10 +467,10 @@ $(function(){
                     this.spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
                     this.typ =typedescriptions[t][d2];
                 }
-                this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + " of "+ (this.identified ? relem(finaldescriptors[t]):"");
+                this.n= (this.identified ? relem(descriptors) : "mysterious ") + " " +  this.d + (this.identified ?  " of "+relem(finaldescriptors[t]):"");
             }
             if (t== "!"){
-                this.n = "Potion " + relem(finaldescriptors[t]);
+                this.n = "Potion of " + relem(finaldescriptors[t]);
                 this.spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
             }
             this.n = "A " + this.n;
@@ -527,8 +539,8 @@ $(function(){
      */
     ms = ["C|cobol|1|5|3|14|0|3",
           "r|rat|1|2|3|8|1|4",
-          "g|goblin|1|3|4|16|1",
-          "j|jerk|2|2|6|9|2",
+          "g|goblin|1|3|4|16|1|1",
+          "j|jerk|2|2|6|9|1|2",
           "s|slime|3|6|12|20|3"
          ]
     var MNS=ms.length;
@@ -548,7 +560,9 @@ $(function(){
         this.hsh = rnd(0,1e9);
         this.maxHP = this.HP = s[5]; //TODO: Randomize?
         this.follow = s[6]-0;
-        this.update = function(oldPosition) {
+        this.update = function(oldP) {
+
+
             if (intersect(this, Character)) {
                 dodmg(Character,this);
                 this.follow=1;
@@ -560,7 +574,7 @@ $(function(){
                     for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
                 }
 
-                setxy(Character, oldPosition);
+                setxy(Character, oldP);
             } else { 
                 with(this){ 
                     if (this.follow==3) return;
@@ -603,9 +617,9 @@ $(function(){
         DEF : 1,
         LVL : 1,
         n : "You",
-        rep : (function() { 
+        rep : function() { 
             return (this.HP == this.maxHP) ? "@" : (this.HP / this.maxHP).toString()[2]; //Possible bug when YOU ARE DEAD //TODO david said i could optimize this
-        })()
+        }
     };
 
     /* Generically writes a list to screen.
@@ -621,7 +635,7 @@ $(function(){
         screenY = min( max(0, Character.y - sz/2), size - sz);
     }
 
-    generateLevel(1,0);
+    generateLevel(2,0);
     ssXY();
     initialize(); 
 
