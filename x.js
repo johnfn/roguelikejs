@@ -2,19 +2,6 @@ Typekit.load();
 $(function(){
 
 //TODO Consider a wrap() function that wraps things in spans or w/e
-
-
-//10672-->9737
-//17317-->16306 (7.6K packed)
-//16306-->15861 (7528 packed)
-//15861-->15803 (7507 packed)
-//21549
-
-    var kOff = { 
-        ks : [],
-        st : function(x) { this.ks[x]=true },
-        gt : function(x) { var v = this.ks[x]; this.ks[x] = false; return v; }
-    };
     var descriptors = ["cool", "decent", "lame", "noobesque"];
     //Note to self - first ones could be highest probability, etc.
     //That would stave off the probability of getting like 20 pokey things in a row
@@ -22,10 +9,10 @@ $(function(){
                              "!" : ["vial", "potion", "tonic"]
     };
     var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["Regeneration", "Poison", "Strength", "Constitution","Defense"] 
+                             "!" : ["regeneration", "poison", "strength", "constitution","defense"] 
     };
 
-    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={};
+    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=0;
 
     while (t++<=255) keys[t] = false;
 
@@ -34,15 +21,9 @@ $(function(){
             t = e.which;
             console.log(t);
             keys[t]=true;
-            kOff.st(t);
             gameLoop();
         }
-    ).keyup (
-        function(e){
-            t = e.which;
-            keys[t]=false;
-        }
-    );
+    )
 
     mrn = function(){return Math.random()}
     min = Math.min;
@@ -52,7 +33,11 @@ $(function(){
     function rsp(l, h){return l + ~~( mrn() * h)}
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function setxy(a, b){a.x = b.x;a.y = b.y}
-    function dodmg(a,b){b.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.DEF+a.STR); writeStatus(a.n + " hit" + (a.n[0]=="T"?"s":"") +  " for " + t + " damage.")} //a hits b
+    function dodmg(a,b) {
+        b.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.DEF+a.STR); 
+        writeStatus(a.n + " hit" + (a.n[0]=="T"?"s":"") +  " for " + t + " damage.");
+        if (a.POI && rnd(0,10)==0) {effect("poison"); writeStatus("You have been poisoned!")}
+    } //a hits b
 
     function relem(x){return x[rnd(0,x.length-1)]} 
 
@@ -67,7 +52,7 @@ $(function(){
         tr=true, t=0,scr=[],l=localStorage;
         while (l["h"+t+"s"]) scr.push({"n":l["h"+t+"n"],"s":l["h"+t+"s"]}), t++; 
         scr.push({"n":"<b>"+(l["h"+t+"n"]=": You")+"</b>","s":l["h"+t+"s"]=curlevel*10+Character.EXP});
-        scr.sort(function(a,b){return a[1]-b[1]});
+        scr.sort(function(a,b){return (a[1]-0)-(b[1]-0)});
         writegenericlist(scr,0);
     }
 
@@ -121,11 +106,12 @@ $(function(){
         }
 
         for (ro in rooms){
+            var wroom = Math.random() > .5;
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
                     //debugger;
-                    (q = rnd(0,999)) < 11 ? items.push(new Item(x,y)) :( q < 12 ? monsters.push(new Monster(x,y,l)) : 0); 
-                    map[x][y] = ".";
+                    (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    map[x][y] = wroom?"~":".";
                 }
             }
         }
@@ -196,6 +182,94 @@ $(function(){
         $("#ks").html(s+B);
     }
     /*
+     * checkLevelUp()
+     *
+     * Levels up the character, if necessary.
+     */
+    function checkLevelUp(){
+        if (Character.EXP > Character.NXT){
+            Character.NXT *=2;
+            Character.LVL++;
+            writeStatus("<span style='color:red'>Level up! Hit L to adjust your new stats.</span>");
+            statpoints++;
+        }
+    }
+
+    /*
+     * intersectItems()
+     *
+     * Checks to see if the character is walking over an item, and if so, reads off its name.
+     *
+     * In the special case of money, it auto-pickups.
+     *
+     * TODO: Make it autopickup other types of items.
+     */
+    function intersectItems(){
+        for (i in items){
+            items[i].N(); //Ensure that it has the correct name.
+            if (intersect(Character, items[i])){
+                 if (items[i].cls == "$"){
+                    items[i].use();
+                    items.splice(i,1); //TODO: code duplication --sorta :: BAD (maybe have an "in inventory" flag?)
+                    writeStatus("You have "+Character.money+"G.");
+                    break;
+                 } else writeStatus(items[i].n + " rolls under your feet.");
+            }
+        }
+    }
+
+    /*
+     * checkStatsChange()
+     *
+     * If the player has chosen to add to their stats, this function is called.
+     */
+
+    function checkStatsChange(){
+        writegenericlist(0,0);
+        writeks({"D":"efense","S":"trength","C":"onstitution"});
+        t = {68:"DEF",83:"STR",67:"CON"};
+        $("#1F1").html("Gain a stat: (D)efense (S)trength (C)onstitution." );
+        
+  
+        for (x in t) if (keys[x]) {Character[t[x]]++; writeStatus(--statpoints + " points left.");}
+        statschange = statpoints>0;
+    }
+
+    /*
+     * displayInventory()
+     *
+     * Draws the contents of the inventory to screen.
+     */
+
+    function displayInventory(){
+        $("#c").html("Inventory");
+        writeks({"Enter":" Use","ESC":" close Inventory","D":"rop"});
+        getInventoryKeys(); 
+        writegenericlist(inventory,is);
+        if (!showInventory) ssXY();
+    }
+
+    /*
+     * statusEffects()
+     *
+     * Deals with buffs from potions, as well as poison from monsters, and maybe even others.
+     */
+
+    function statusEffects(){
+        st={};
+        for (V in queue){
+            t=queue[V];
+            st[t.n]=(!!st[t.n])+1; //deep dark magic
+            if (t.t--<0){
+                queue.splice(V, 1);
+                if (t.rel) t.v*=-1; t.rel=0;
+            }
+            if (!t.rel) Character[t.s]+=t.v;
+        }
+    }
+
+
+    /*
      * gameLoop()
      *
      * Takes care of most of the game logic, including odds and ends that it wasn't worth to decompose into functions.
@@ -210,81 +284,61 @@ $(function(){
         //summation from 1 to character's level of (4+i)
         Character.maxHP = Character.CON*7 + 10*Character.LVL; 
 
-         for (i in items){ items[i].N() } //TODO a little bit of code duplication here.
-         for (i in inventory){ inventory[i].N() } 
+         for (i in inventory) inventory[i].N() 
 
         Character.HP=min(Character.HP,Character.maxHP);
-        $("#hlth").html(" $: " + Character.money +B+ " LVL: " + Character.LVL +B+ " EXP: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " DMG: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " STR: " +t  +B+" CON: " + Character.CON +B+ " DEF: " + Character.DEF +B+ " Dungeon LVL:" + curlevel +B);
+        s="";for (x in st)s += x + " x " + st[x] + B;
+        $("#hlth").html(" $: " + Character.money +B+ " Level: " + Character.LVL +B+ " Experience: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " Damage: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " Strength: " +t  +B+" Constitution: " + Character.CON +B+ " Defense: " + Character.DEF +B+ " Dungeon Level:" + curlevel +B + s);
+
         if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
-        if (statschange) { 
-            $("#board > span").html("").css("background-color","");
-            writeks({"D":"efense","S":"trength","C":"onstitution"});
-            t = {68:"DEF",83:"STR",67:"CON"};
-            $("#1F1").html("Gain a stat: (D)efense (S)trength (C)onstitution." );
-            
-      
-            for (x in t) if (keys[x]) {Character[t[x]]++; writeStatus(--statpoints + " points left.");}
-            statschange = statpoints>0;
+
+        checkLevelUp();
+
+        if (statschange) {
+            checkStatsChange(); 
             return;
-        } else { 
+        }
+        if (showInventory){
+            displayInventory();
+            return;
+        }
+        if (ranging){
+            writeks({"X":" Cycle through monsters", "ESC" : " Cancel"});
+            if (keys[88]) whichTarget = whichTarget+1 % monsters.length;
+            console.log(whichTarget);
 
-            if (Character.EXP > Character.NXT){
-                Character.NXT *=2;
-                Character.LVL++;
-                writeStatus("<span style='color:red'>Level up! Hit L to adjust your new stats.</span>");
-                statpoints++;
-            }
-            if (showInventory){
-                $("#c").html("Inventory");
-                writeks({"Enter":" Use","ESC":" close Inventory","D":"rop"});
-                getInventoryKeys(); 
-                writegenericlist(inventory,is);
-                if (!showInventory) ssXY();
-                return; //don't writeBoard
-            } else {
-                $("#c").html("Rogue");
-                writeks({"WASD":" Move", "QEZC":" Diag", "R":"est","I":"nventory","G":"rab item", "Walk into a monster":"Attack","<br>>":" Go upstairs","<":" Go downstairs" });
-                a = getKeys();
-                pc=map[Character.x][Character.y]; 
-                if (a || resting) { 
-                    for (V in queue){
-                        t=queue[V]
-                        if (t.t--<0){
-                            queue.splice(V, 1);
-                            if (t.rel) t.v*=-1; t.rel=0;
-                        }
-                        if (!t.rel) Character[t.s]+=t.v;
-                    }
+            keys[88] = false;
+            if (keys[27]) ranging=false;
+        }
 
-                    resting = !(a || Character.HP == Character.maxHP) 
-                    moves++;
-                    Character.HP += resting + (moves%REGENRATE==0 && Character.HP != Character.maxHP)
-                    if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
-                    for (i in monsters) monsters[i].update(oldPosition);
-                    
-                    for (i in items){
-                        if (intersect(Character, items[i])){
-                             if (items[i].cls == "$"){
-                                items[i].use();
-                                items.splice(i,1); //TODO: code duplication --sorta :: BAD (maybe have an "in inventory" flag?)
-                                writeStatus("You have "+Character.money+"G.");
-                                break;
-                             } else writeStatus(items[i].n + " rolls under your feet.");
-                        }
-                    }
-                    if (pc == ">") writeStatus("You see stairs leading upward.");
-                    if (pc == "&lt;") writeStatus("You see stairs leading downward.");
-                    ssXY();
-                    if (resting){
-                        for (i in monsters)
-                            if (bounded(monsters[i].x-screenX) && bounded(monsters[i].y-screenY) && vis[monsters[i].x-screenX][monsters[i].y-screenY]) {
-                                resting = false; writeStatus("A nearby monster wakes you!"); break;
-                            } 
-                    }
-                }
+        $("#c").html("Rogue");
+        writeks({"WASD":" Move", "QEZC":" Diag", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack","<br>>":" Go upstairs","<":" Go downstairs" });
+        a = getKeys();
+        pc=map[Character.x][Character.y]; 
+        if (a || resting) { 
+            statusEffects(); 
+
+            resting = !(a || Character.HP == Character.maxHP) 
+            moves++;
+            Character.HP += resting + (!moves%REGENRATE && Character.HP != Character.maxHP)
+            if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
+            for (i in monsters) monsters[i].update(oldPosition);
+            
+            intersectItems();
+            if (pc == ">") writeStatus("You see stairs leading upward.");
+            if (pc == "&lt;") writeStatus("You see stairs leading downward.");
+            ssXY();
+            if (resting){
+                for (i in monsters)
+                    if (bounded(monsters[i].x-screenX) && bounded(monsters[i].y-screenY) && vis[monsters[i].x-screenX][monsters[i].y-screenY]) {
+                        resting = false; writeStatus("A nearby monster wakes you!"); break;
+                    } 
             }
         }
+
         if (!tr) writeBoard(); 
+        t=255;
+        while(t--) keys[t]=false;
     }
 
     /*
@@ -313,6 +367,20 @@ $(function(){
     }
     function bounded(x){
         return x>=0 && x<sz;
+    }
+
+    var canv= document.getElementById("canvas");
+    var context = canv.getContext('2d');
+    function wTile(x,y,r,g,b,d){ //Xpos, Ypos, (RGB), darkness
+        context.fillStyle = '#' + r + g + b; //(r?d:"55") + (g?d:"55") + (b?d:"55");
+        var W=15;
+        context.fillRect(x,y,W,W);
+        /*for (var i=0;i<10;i++){
+            var P=40+~~(Math.random()*50);
+            var v = '#' + (r?d:P) + (g?d:P) + (b?d:P);
+            context.fillStyle = v;
+            context.fillRect(x+Math.random()*(W-3),y+Math.random()*(W-3),3,3);
+        } */
     }
 
     function writeBoard(){
@@ -363,19 +431,45 @@ $(function(){
         
         //console.log(text[ox-screenX,oy-screenY]);
 
+        context.clearRect(0,0,500,500);
+
         
         for (var i=0;i<sz;i++){
             for (var j=0;j<sz;j++){
                 var cs = { ".":"black", "C":"red", "j":"blue","$":"gold","[":"cyan","g":"green"}; 
                 var bcs = { ".":"white", "&nbsp;":"black" }; 
-                if (!vis[i][j]) if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
+                if (!(t=vis[i][j])) if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
                 
-                if ( (t=$("#"+i+"F"+j)).html() != (s=text[i][j])) {
-                    t.html(s).css({"color":cs[s] || "black","background-color":bcs[s] || "white" }); 
-                }
+                if (text[i][j] == ".")  
+                    wTile(j*15,i*15,"55",t?"ff":"bb","55",0);
+
+                if (text[i][j] == "~")  
+                    wTile(j*15,i*15,"55","55",t?"ff":"bb",0);
+
+                if (text[i][j] == "#")  
+                    wTile(j*15,i*15,"66","66","66",t?"aa":"cc");
+
+                if (text[i][j] == "&nbsp;")
+                    wTile(j*15,i*15,"00","00","00","00");
+
+                if (text[i][j] == "c" || text[i][j] == "j" || text[i][j] == "g" || text[i][j] == "r")
+                    wTile(j*15,i*15,"ff","55","55","aa");
+
+                if (text[i][j] == ">" || text[i][j] == "<")
+                    wTile(j*15,i*15,"66","66","33","aa");
+
+                if (text[i][j] == "!" || text[i][j] == "?" || text[i][j] == "[")
+                    wTile(j*15,i*15,"dd","dd","55","aa");
+
+                if (monsters[whichTarget].x == i && monsters[whichTarget].y == j)
+                    wTile(j*15, i*15, "33", "33", "33", "33");
+
+                //if ( (t=$("#"+i+"F"+j)).html() != (s=text[i][j])) {
+                    //t.html(s).css({"color":cs[s] || "black","background-color":bcs[s] || "white" }); 
+
+                //}
                 
-                //
-                if (s == ".") t.css("color",vis[i][j] ? "black" : "#cccccc");
+                //if (s == ".") t.css("color",vis[i][j] ? "black" : "#cccccc");
             }
         } 
 
@@ -406,8 +500,9 @@ $(function(){
         82:function(){ 
             writeStatus("You take a quick nap."); resting = true;
         },
-        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; kOff.gt(68)}, //TODO: THIS IS A HACK. FIX IT.
+        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; },
         76:function(){statschange = statpoints;},
+        88:function(){ranging = !ranging;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         188:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
         190:function(){if (pc == ">") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel,1); } else {writeStatus("There's no staircase here.");} }
@@ -436,9 +531,8 @@ $(function(){
      */
     function getInventoryKeys(){
         is += keys[83] - keys[87];
-        keys[83]=keys[87]=false;
-        if (kOff.gt(13)) itemuse();
-        if (kOff.gt(68)){
+        if (keys[13]) itemuse();
+        if (keys[68]){
             t=inventory[is];
 
             if (t.cls=="[" && t.equipped){
@@ -449,11 +543,10 @@ $(function(){
             inventory.splice(is, 1);
         }
 
-        //if (kOff.gt(69)) writeStatus(inventory[is].getdetails());
 
         is = max(0, min ( inventory.length - 1, is));
-        if (kOff.gt(27)) //(I)nventory
-            {showInventory = false; kOff.ks=[];}
+        if (keys[27]) //(I)nventory
+            showInventory = false; 
     }
 
 
@@ -465,10 +558,10 @@ $(function(){
     function getKeys(){
         Character.x += max(-1, min(1, -keys[69] - keys[81] +keys[90] + keys[67] + keys[83] - keys[87]));
         Character.y += max(-1, min(1, keys[68] - keys[65] - keys[81] + keys[69] - keys[90] + keys[67]));
-        for (i in m) if (kOff.gt(i)) m[i]();
+        for (i in m) if (keys[i]) m[i]();
 
         var change = false;
-        for (i in actionkeys) change |= keys[actionkeys[i]],keys[actionkeys[i]]=0; 
+        for (i in actionkeys) change |= keys[actionkeys[i]]; 
         
         return change;
     }
@@ -485,10 +578,10 @@ $(function(){
         var ns = {t:15,rel:1,s:"STR",v:1,n:"+STR"};
         ns.n = t;
         
-        if(t[0]=="P")ns.s="HP", ns.rel=0, ns.v=-1;
-        if(t[0]=="R")ns.s="HP", ns.rel=0;
-        t[0]=="C"? ns.s="CON":0;
-        t[0]=="D"? ns.s="DEF":0;
+        if(t[0]=="p")ns.s="HP", ns.rel=0, ns.v=-1;
+        if(t[0]=="r")ns.s="HP", ns.rel=0;
+        t[0]=="c"? ns.s="CON":0;
+        t[0]=="d"? ns.s="DEF":0;
 
         Character[ns.s] += ns.v; //First use for relative buffs (like regen) and ONLY use for nonrelative buffs (+1 STR etc)
         queue.push(ns);
@@ -509,7 +602,7 @@ $(function(){
         this.d="";
         this.init = function() { 
             with(this){      
-                t = cls = "!"; //relem(["!", "[", "$", "?"]) //FIXME
+                t = cls = relem(["!", "[", "$", "?"]);
 
                 if (t == "$"){
                     spec["money"] = -rnd(curlevel, (1+curlevel)*7);
@@ -526,7 +619,7 @@ $(function(){
                     d2=rnd(0,typedescriptions["["].length-1);
                     d = typedescriptions[t][d2];
                     if (d2<8){ 
-                        spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 6*curlevel)) + rnd(1,5+curlevel*2);
+                        spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 3*curlevel)) + rnd(1,3+curlevel*2);
                         spec["STR"] = max(0,rnd(0,100)-95);
                         typ="w";
                     } else { 
@@ -544,54 +637,55 @@ $(function(){
             }
         }
         this.use = function() {
-            var s=this.spec,c=this.cls, fb="You feel better.";
-            if (c=="?"){
-                writeStatus("You read the scroll.");
-                showInventory = false;
-                //for now, just teleport.
-                var r=rnd(0,100);
-                console.log(r);
-                if (r>70){ 
-                    var x,y;
-                    do{
-                        x = rsp(0,size);
-                        y = rsp(0,size);
-                    } while (map[x][y] == "#");
-                    Character.x=x;
-                    Character.y=y;
-                    writeStatus("Hm...Where are you?");
-                    return;
-                } 
-                (r>65) ? //TODO THIS IS MAJORLY ABSTRACTABLE, much in the same way as potions O_O they are almost the same...
-                    (Character.money += (t=rsp(5,100)),
-                    writeStatus("The scroll turns into gold!"))
-                : (r>50) ? 
-                    (Character.HP += 30,
-                    writeStatus(fb))
-                : (r>35)?
-                    (Character.HP -= 10,
-                    writeStatus("OUCH!"))
-                : (r>30)?
-                    (statpoints++,
-                    writeStatus("You gain a stat point! (L)"))
-                : (r>20) ?
-                    (writeStatus("You feel experienced."),
-                    Character.EXP+=10)
-                :  (writeStatus("Nothing happens."))
-            } else {
-                if (this.equipped) { 
-                    for (x in s) Character[x] += s[x] != null ? s[x] : 0;
-                    if (c=="!") {
-                        //Potion types: ["Regeneration", "Poison", "Strength", "Constitution","Defense"]
-                        effect(t=this.typ);
+            with(this){ 
+                var s=spec,c=cls, fb="You feel better.";
+                if (c=="?"){
+                    writeStatus("You read the scroll.");
+                    showInventory = false;
+                    //for now, just teleport.
+                    var r=rnd(0,100);
+                    if (r>70){ 
+                        var x,y;
+                        do{
+                            x = rsp(0,size);
+                            y = rsp(0,size);
+                        } while (map[x][y] == "#");
+                        Character.x=x;
+                        Character.y=y;
+                        writeStatus("Hm...Where are you?");
+                        return;
+                    } 
+                    (r>65) ? //TODO THIS IS MAJORLY ABSTRACTABLE, much in the same way as potions O_O they are almost the same...
+                        (Character.money += (t=rsp(5,100)),
+                        writeStatus("The scroll turns into gold!"))
+                    : (r>50) ? 
+                        (Character.HP += 30,
+                        writeStatus(fb))
+                    : (r>35)?
+                        (Character.HP -= 10,
+                        writeStatus("OUCH!"))
+                    : (r>30)?
+                        (statpoints++,
+                        writeStatus("You gain a stat point! (L)"))
+                    : (r>20) ?
+                        (writeStatus("You feel experienced."),
+                        Character.EXP+=curlevel*8)
+                    :  (writeStatus("Nothing happens."))
+                } else {
+                    if (equipped) { 
+                        for (x in s) Character[x] += s[x] != null ? s[x] : 0;
+                        if (c=="!") {
+                            //Potion types: ["Regeneration", "Poison", "Strength", "Constitution","Defense"]
+                            effect(t=typ);
 
-                        writeStatus("The potion tastes like " + t + "!"); //Heheheh 
-                        //queue.push({t:15,rel:0,s:"HP",v:-1,n:"poison"});
+                            writeStatus("The potion tastes like " + t + "!"); //Heheheh 
+                            //queue.push({t:15,rel:0,s:"HP",v:-1,n:"poison"});
+                        }
+                        if (c=="[") writeStatus("You wield the object. You can't wait to pwn some noobs.");
+                    } else { 
+                        for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
+                        if (c=="[") writeStatus("You unwield the object.");
                     }
-                    if (c=="[") writeStatus("You wield the object. You can't wait to pwn some noobs.");
-                } else { 
-                    for (x in s) Character[x] -= s[x] != null ? s[x] : 0;
-                    if (c=="[") writeStatus("You unwield the object.");
                 }
             }
             return (c == "$" || c == "!" || c=="?"); //destroy
@@ -606,15 +700,19 @@ $(function(){
     /*
      * Store monster properties in a bar delimited string.
      *
-     * Character|Full name|Minimum level to encounter|Damage (low)|Damage (high)|Hit points|Follow flag|Agility
+     * Character|Full name|Minimum level to encounter|Damage (low)|Damage (high)|Hit points|Follow flag|Agility|Poison
      *
      * Special notes about AGL: AGL determines how fast a monster can move compared to you. 5 means just as fast. 0 means never moves. 9 means doublespeed, almost.
+     *
+     * Special notes about poison: Only tack on the 1 at the end if a monster poisons. Don't tack it on if it doesn't.
+     *
      */
-    ms = ["C|cobol|1|5|3|14|0|3",
+    ms = ["c|cobol|1|5|3|14|0|3",
           "r|rat|1|2|3|8|1|4",
           "g|goblin|1|3|4|16|1|1",
           "j|jerk|2|2|6|9|1|2",
-          "s|slime|3|6|12|20|3"
+          "s|slime|3|6|12|20|1|3",
+          "S|snake|4|6|12|20|1|7|1"
          ]
     var MNS=ms.length;
 
@@ -628,6 +726,7 @@ $(function(){
         this.DMG = s[3]-0; // almost certainly the shortest way to cast to int
         this.DMX = s[4]-0;
         this.AGL = s[7]-0;
+        this.POI = !!s[8]; //T if exists, F otherwise. 
         this.DEF = 1;
         this.n = "The " + s[1];
         this.hsh = rnd(0,1e9);
