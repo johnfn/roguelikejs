@@ -118,7 +118,8 @@ $(function(){
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
                     //debugger;
-                    (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    (q = rnd(0,999)) < 9 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    //(q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
                     map[x][y] = wroom?"~":".";
                 }
             }
@@ -241,20 +242,6 @@ $(function(){
   
         for (x in t) if (keys[x]) {Character[t[x]]++; writeStatus(--statpoints + " points left.");}
         statschange = statpoints>0;
-    }
-
-    /*
-     * displayInventory()
-     *
-     * Draws the contents of the inventory to screen.
-     */
-
-    function displayInventory(){
-        $("#c").html("Inventory");
-        writeks({"Enter":" Use","ESC":" close Inventory","D":"rop"});
-        getInventoryKeys(); 
-        writegenericlist(inventory,is);
-        if (!showInventory) ssXY();
     }
 
     /*
@@ -387,7 +374,11 @@ $(function(){
             return;
         }
         if (showInventory){
-            displayInventory();
+            writeks({"Enter":" Use","ESC":" close Inventory","D":"rop"});
+            $("#c").html("Inventory");
+            Inventory.getKeys();
+            Inventory.display();
+            if (!showInventory) ssXY();
             return;
         }
         if (showMap){
@@ -557,11 +548,14 @@ $(function(){
         //$("#board").html(html);
     } 
     function pickupItem(){
-        if (inventory.length>15) { writeStatus("You are carrying too much!"); return;} 
         for (i in items){
             if (intersect(items[i], Character)){
-                inventory.push(items[i]);
+                debugger;
+                console.log(items);
+                Inventory.addItem(items[i]);
+                console.log(items);
                 items.splice(i, 1);
+                console.log(items);
                 writeStatus("You pick an item up off the ground.");
                 return;
             }
@@ -574,7 +568,7 @@ $(function(){
         82:function(){ 
             writeStatus("You take a quick nap."); resting = true;
         },
-        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; },
+        73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; Inventory.display();},
         76:function(){statschange = statpoints;},
         88:function(){ranging = !ranging;},
         77:function(){showMap = !showMap;},
@@ -582,49 +576,6 @@ $(function(){
         188:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
         190:function(){if (pc == ">") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel,1); } else {writeStatus("There's no staircase here.");} }
     };
-    /*
-     * itemuse()
-     *
-     * A helper function that mostly manages the inventory settings equpping, and removing consumable items from the inventory list
-     */
-    function itemuse(){
-        var a=inventory[is];
-        if (!a.equipped){
-            //about to equip
-            if ((a.cls=="["&&wielding[a.typ])) { writeStatus("You can't wield another item of that type."); return;}
-        }
-        wielding[a.typ] = !wielding[a.typ]; //This accounts not only for weapons and armor, but also for seen items (e.g. potions).
-        a.equipped = !a.equipped;
-        if (inventory[is].use()){
-            inventory.splice(is, 1);
-        }
-    }
-    /*
-     * getInventoryKeys()
-     *
-     * The inventory has a special key handler. This might be abstractable; I'm not sure what the gains would be, though.
-     */
-    function getInventoryKeys(){
-        is += keys[83] - keys[87];
-        if (keys[13]) itemuse();
-        if (keys[68]){
-            t=inventory[is];
-
-            if (t.cls=="[" && t.equipped){
-                itemuse();
-            }
-            setxy(t,Character);
-            items.push(t);
-            inventory.splice(is, 1);
-        }
-
-
-        is = max(0, min ( inventory.length - 1, is));
-        if (keys[27]) //(I)nventory
-            showInventory = false; 
-    }
-
-
     /*
      * getKeys()
      *
@@ -666,6 +617,8 @@ $(function(){
     function Item(x, y){
         this.x=x;
         this.y=y;
+        this.stacks=true; //Can multiples of these take up just 1 inventory slot?
+        this.count=1; //only important when you have one in your inventory
         this.cls = "";
         this.equipped = false;
         this.spec = {}; 
@@ -683,12 +636,13 @@ $(function(){
                     spec["money"] = -rnd(curlevel, (1+curlevel)*7);
                 }
                 if (t == "?"){
+                    //TODO: Scrolls should not be randomized.
                     n = "unidentified scroll";
-                    //TODO: once you use it once, you know what it does.
                 }
 
                 var d2;
                 if (t== "["){
+                    this.stacks = false; //Each weapon is considered unique.
                     //x to y damage
                     //+N to strength
                     d2=rnd(0,typedescriptions["["].length-1);
@@ -859,6 +813,77 @@ $(function(){
         rep : function() { 
             return (this.HP == this.maxHP) ? "@" : (this.HP / this.maxHP).toString()[2];
         }
+    };
+
+    var Inventory = {
+        sel : 0,
+        items : [],
+        addItem : function(itm){
+            var li;
+            if (this.items.length>15) {
+                writeStatus("You are carrying too much!"); 
+                return;
+            } 
+
+            if (itm.stacks){
+                var hash = itm.t + itm.typ; //This is a fairly unique way to represent items
+                //Try to stack it first.
+                for (li in this.items){
+                    if (this.items[li].t + this.items[li].typ == hash){
+                        this.items[li].count++;
+                        return;
+                    }
+                }
+            }
+            //Either stacking failed or it doesn't stack at all.
+            this.items.push(itm);
+        },
+        useItem : function(){
+            //debugger;
+            var a=this.items[this.sel];
+            if (!a.equipped){
+                //about to equip
+                if (a.cls=="["&&wielding[a.typ]) { 
+                    writeStatus("You can't wield another item of that type."); 
+                    return;
+                }
+            }
+            wielding[a.typ] = !wielding[a.typ]; //This accounts not only for weapons and armor, but also for seen items (e.g. potions).
+            a.equipped = !a.equipped;
+            if (a.use()){
+                this.items.splice(this.sel, 1);
+            }
+        },
+        dropItem : function(){
+            var a=this.items[this.sel];
+
+            if (a.cls=="[" && a.equipped){
+                itemuse();
+            }
+            setxy(a,Character);
+            items.push(a);
+            inventory.splice(this.sel, 1);
+        }, 
+        display : function(){
+            $("#board > span").html("").css({"background-color":"","color":""});
+            for (i in this.items){
+                var c = this.items[i];
+                var desc = "";
+                if (this.sel==i) desc += "*"; else desc+= c.equipped ? "+" : "-"; 
+                desc += c.count + "x " + c.n + (c.equipped ? "[equipped]" : ""); 
+               $("#"+i+"F0").html(desc);
+            }
+        },
+        getKeys : function(){
+            this.sel += keys[83] - keys[87]; keys[83]=keys[87]=false;
+            if (keys[13]) this.useItem(); keys[13] = false; //TODO STICKYKEYS
+            if (keys[68]) this.dropItem();
+
+            this.sel = max(0, min ( this.items.length - 1,this.sel));
+            if (keys[27]) //ESC
+                showInventory = false; 
+        },
+        hasTalis : false
     };
 
     /* Generically writes a list to screen.
