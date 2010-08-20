@@ -12,7 +12,7 @@ $(function(){
                              "!" : ["regeneration", "poison", "strength", "constitution","defense"] 
     };
 
-    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=0;
+    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=false;
 
     while (t++<=255) keys[t] = false;
 
@@ -37,6 +37,14 @@ $(function(){
         b.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.DEF+a.STR); 
         writeStatus(a.n + " hit" + (a.n[0]=="T"?"s":"") +  " for " + t + " damage.");
         if (a.POI && rnd(0,10)==0) {effect("poison"); writeStatus("You have been poisoned!")}
+
+        if (b.HP < 0){ //FIXME and b is not Character
+            writeStatus("Holy crap! "+b.n+" explodes in a huge explosion of blood! It's really gross!");
+            Character.EXP += ~~Math.sqrt(b.maxHP*b.DMG/9)+1;
+            if (rnd(0,5) <2) { items.push(new Item(b.x, b.y)); writeStatus("The monster dropped an item.")}
+            for (i in monsters) if (monsters[i] == b) monsters.splice(i, 1);
+        }
+        return b.HP < 0; //Return true on death, false otherwise
     } //a hits b
 
     function relem(x){return x[rnd(0,x.length-1)]} 
@@ -268,7 +276,93 @@ $(function(){
         }
     }
 
+    function rangeAction(){
+        //TODO abstract into a function; call immediately when 88 is pressed.
+        writeks({"X":" Cycle through monsters","Enter":"Fire", "ESC" : " Cancel"});
 
+        if (keys[88]) {
+            var di=1e6; //Infinity for all practical purposes
+
+            var start = whichTarget;
+            //Find the next visible monster
+            do { 
+                whichTarget++;
+                whichTarget %= monsters.length;
+                var m = monsters[whichTarget];
+                if (bounded(m.x-screenX) && bounded(m.y-screenY) && vis[m.x-screenX][m.y-screenY]) break;
+            } while (di > 1e5 && whichTarget != start)
+            
+            //TODO
+            //If we haven't found a target, set whichTarget back to -1 (so that we know we aren't targetting anything)
+
+        }
+
+
+        keys[88] = false;
+        if (keys[27]) {ranging=false;whichTarget=-1;} 
+        if (keys[13]){
+            //Attack
+            
+            if (dodmg(Character, monsters[whichTarget])){
+                whichTarget = -1;
+                ranging = false;
+            }
+            keys[13] = false;
+
+            return true; //action has been taken
+        }
+        //TODO: 
+        //Let all the keys be reset by that helper function.
+
+        //writeBoard();
+
+        return false;
+
+    }
+    function takeTurn(){
+        pc=map[Character.x][Character.y]; 
+        statusEffects(); 
+
+        moves++;
+        Character.HP += resting + (!moves%REGENRATE && Character.HP != Character.maxHP)
+        if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
+        for (i in monsters) monsters[i].update(oldPosition);
+        
+        intersectItems();
+        if (pc == ">") writeStatus("You see stairs leading upward.");
+        if (pc == "&lt;") writeStatus("You see stairs leading downward.");
+        ssXY();
+        if (resting){
+            for (i in monsters)
+                if (bounded(monsters[i].x-screenX) && bounded(monsters[i].y-screenY) && vis[monsters[i].x-screenX][monsters[i].y-screenY]) {
+                    resting = false; writeStatus("A nearby monster wakes you!"); break;
+                } 
+        }
+    }
+    function renderSidebar(){
+        s="";for (x in st)s += x + " x " + st[x] + B;
+        $("#hlth").html(" $: " + Character.money +B+ " Level: " + Character.LVL +B+ " Experience: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " Damage: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " Strength: " +t  +B+" Constitution: " + Character.CON +B+ " Defense: " + Character.DEF +B+ " Dungeon Level:" + curlevel +B + s);
+    }
+    /*
+     * drawMap()
+     *
+     * Renders a minimap to screen. Awesome.
+     *
+     * TODO: It would be neat if this would automatically be in the lower right side - like in Zelda or something.
+     */
+    function drawMap(){
+        for (var i=0;i<size;i++){
+            for (var j=0;j<size;j++){
+                //todo: make the person show up as a glowing dot on the map
+                //todo: for larger maps, scale down the 3-factor
+                writeTileGeneric(j, i, 3, map[j][i],  seen[j][i]);
+            }
+        }
+
+        if (keys[27]){
+            showMap = false;
+        }
+    }
     /*
      * gameLoop()
      *
@@ -278,21 +372,15 @@ $(function(){
     function gameLoop(){
         if (tr) { $("#c").html("Highscore"); return; }
         oldPosition = {x : Character.x, y : Character.y } ; 
-        var a = false;
+        var action = false;
 
-        //max HP = 4 * Constitution modifier + 
-        //summation from 1 to character's level of (4+i)
         Character.maxHP = Character.CON*7 + 10*Character.LVL; 
 
          for (i in inventory) inventory[i].N() 
 
-        Character.HP=min(Character.HP,Character.maxHP);
-        s="";for (x in st)s += x + " x " + st[x] + B;
-        $("#hlth").html(" $: " + Character.money +B+ " Level: " + Character.LVL +B+ " Experience: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " Damage: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " Strength: " +t  +B+" Constitution: " + Character.CON +B+ " Defense: " + Character.DEF +B+ " Dungeon Level:" + curlevel +B + s);
+         Character.HP=min(Character.HP,Character.maxHP);
+         renderSidebar();
 
-        if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
-
-        checkLevelUp();
 
         if (statschange) {
             checkStatsChange(); 
@@ -302,38 +390,23 @@ $(function(){
             displayInventory();
             return;
         }
-        if (ranging){
-            writeks({"X":" Cycle through monsters", "ESC" : " Cancel"});
-            if (keys[88]) whichTarget = whichTarget+1 % monsters.length;
-            console.log(whichTarget);
-
-            keys[88] = false;
-            if (keys[27]) ranging=false;
+        if (showMap){
+            drawMap();
+            return;
         }
 
-        $("#c").html("Rogue");
-        writeks({"WASD":" Move", "QEZC":" Diag", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack","<br>>":" Go upstairs","<":" Go downstairs" });
-        a = getKeys();
-        pc=map[Character.x][Character.y]; 
-        if (a || resting) { 
-            statusEffects(); 
+        checkLevelUp();
 
-            resting = !(a || Character.HP == Character.maxHP) 
-            moves++;
-            Character.HP += resting + (!moves%REGENRATE && Character.HP != Character.maxHP)
-            if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
-            for (i in monsters) monsters[i].update(oldPosition);
-            
-            intersectItems();
-            if (pc == ">") writeStatus("You see stairs leading upward.");
-            if (pc == "&lt;") writeStatus("You see stairs leading downward.");
-            ssXY();
-            if (resting){
-                for (i in monsters)
-                    if (bounded(monsters[i].x-screenX) && bounded(monsters[i].y-screenY) && vis[monsters[i].x-screenX][monsters[i].y-screenY]) {
-                        resting = false; writeStatus("A nearby monster wakes you!"); break;
-                    } 
-            }
+        if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
+
+        $("#c").html("Rogue");
+        writeks({"WASD":" Move", "QEZC":" Diag", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack",
+                "<br>>":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" });
+
+        action = (ranging && rangeAction()) || getKeys();
+        if (action || resting) { 
+            resting = !(action || Character.HP == Character.maxHP) 
+            takeTurn();
         }
 
         if (!tr) writeBoard(); 
@@ -358,7 +431,7 @@ $(function(){
     function initialize(){
         for (var i=0;i<sz;i++) { 
           for (var j=0;j<sz;j++) 
-            $("#board").append("<span id='"+i+"F"+j+"'>P</span>"); 
+            $("#board").append("<span id='"+i+"F"+j+"'></span>"); 
         $("#board").append("<br>");
         } 
         setInterval(gameLoop,90);
@@ -371,16 +444,44 @@ $(function(){
 
     var canv= document.getElementById("canvas");
     var context = canv.getContext('2d');
-    function wTile(x,y,r,g,b,d){ //Xpos, Ypos, (RGB), darkness
+    function wTile(x,y,r,g,b,sz){ //Xpos, Ypos, (RGB), size
         context.fillStyle = '#' + r + g + b; //(r?d:"55") + (g?d:"55") + (b?d:"55");
-        var W=15;
-        context.fillRect(x,y,W,W);
-        /*for (var i=0;i<10;i++){
+        //var W=20;
+        context.fillRect(x*sz,y*sz,sz,sz);
+        /* experimental "speckling" of tiles.
+         *
+         * for (var i=0;i<10;i++){
             var P=40+~~(Math.random()*50);
             var v = '#' + (r?d:P) + (g?d:P) + (b?d:P);
             context.fillStyle = v;
             context.fillRect(x+Math.random()*(W-3),y+Math.random()*(W-3),3,3);
         } */
+    }
+
+    function writeTileGeneric(i, j, sz, type, vis){
+        if (type == ".")  
+            wTile(j,i,"55",vis?"ff":"bb","55",sz);
+
+        if (type == "~")  
+            wTile(j,i,"55","55",vis?"ff":"bb",sz);
+
+        if (type == "#")  
+            wTile(j,i,"66","66","66",sz);
+
+        if (type == "&nbsp;")
+            wTile(j,i,"00","00","00",sz);
+
+        if (type == "c" || type == "j" || type == "g" || type == "r")
+            wTile(j,i,"ff","55","55",sz);
+
+        if (type == ">" || type == "<")
+            wTile(j,i,"66","66","33",sz);
+
+        if (type == "!" || type == "?" || type == "[")
+            wTile(j,i,"dd","dd","55",sz);
+
+        if (whichTarget != -1 && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
+            wTile(j, i, "33", "33", "33", sz);
     }
 
     function writeBoard(){
@@ -439,35 +540,9 @@ $(function(){
                 var cs = { ".":"black", "C":"red", "j":"blue","$":"gold","[":"cyan","g":"green"}; 
                 var bcs = { ".":"white", "&nbsp;":"black" }; 
                 if (!(t=vis[i][j])) if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
-                
-                if (text[i][j] == ".")  
-                    wTile(j*15,i*15,"55",t?"ff":"bb","55",0);
-
-                if (text[i][j] == "~")  
-                    wTile(j*15,i*15,"55","55",t?"ff":"bb",0);
-
-                if (text[i][j] == "#")  
-                    wTile(j*15,i*15,"66","66","66",t?"aa":"cc");
-
-                if (text[i][j] == "&nbsp;")
-                    wTile(j*15,i*15,"00","00","00","00");
-
-                if (text[i][j] == "c" || text[i][j] == "j" || text[i][j] == "g" || text[i][j] == "r")
-                    wTile(j*15,i*15,"ff","55","55","aa");
-
-                if (text[i][j] == ">" || text[i][j] == "<")
-                    wTile(j*15,i*15,"66","66","33","aa");
-
-                if (text[i][j] == "!" || text[i][j] == "?" || text[i][j] == "[")
-                    wTile(j*15,i*15,"dd","dd","55","aa");
-
-                if (monsters[whichTarget].x == i && monsters[whichTarget].y == j)
-                    wTile(j*15, i*15, "33", "33", "33", "33");
-
-                //if ( (t=$("#"+i+"F"+j)).html() != (s=text[i][j])) {
-                    //t.html(s).css({"color":cs[s] || "black","background-color":bcs[s] || "white" }); 
-
-                //}
+   
+                //function writeTileGeneric(i, j, sz, type, vis){
+                writeTileGeneric(i, j, 20, text[i][j], t);
                 
                 //if (s == ".") t.css("color",vis[i][j] ? "black" : "#cccccc");
             }
@@ -494,7 +569,6 @@ $(function(){
         writeStatus("You swing your arms hopelessly at the ground, trying to find something.");
     }
 
-    //TODO abstract writeStatus out of all these
     var m = {//83:function(){writeStatus("You have " + Character.HP + "/" + Character.maxHP + " HP.<br> You have been playing for " + moves + " moves.")},
         71:pickupItem,
         82:function(){ 
@@ -503,6 +577,7 @@ $(function(){
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; },
         76:function(){statschange = statpoints;},
         88:function(){ranging = !ranging;},
+        77:function(){showMap = !showMap;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         188:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
         190:function(){if (pc == ">") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel,1); } else {writeStatus("There's no staircase here.");} }
@@ -737,12 +812,6 @@ $(function(){
                 dodmg(Character,this);
                 this.follow=1;
                 if (this.HP > 0 || this.AGL > Character.AGL) dodmg(this,Character);
-                if (this.HP < 0){ 
-                    writeStatus("Holy crap! "+this.n+" explodes in a huge explosion of blood! It's really gross!");
-                    Character.EXP += ~~Math.sqrt(this.maxHP*this.DMG/9)+1;
-                    if (rnd(0,5) <2) { items.push(new Item(this.x, this.y)); writeStatus("The monster dropped an item.")}
-                    for (i in monsters) if (monsters[i] == this) monsters.splice(i, 1);
-                }
 
                 setxy(Character, oldP);
             } else { 
