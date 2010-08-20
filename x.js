@@ -1,4 +1,4 @@
-Typekit.load();
+//Typekit.load();
 $(function(){
 
 //TODO Consider a wrap() function that wraps things in spans or w/e
@@ -118,8 +118,7 @@ $(function(){
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
                     //debugger;
-                    (q = rnd(0,999)) < 9 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
-                    //(q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
                     map[x][y] = wroom?"~":".";
                 }
             }
@@ -263,9 +262,33 @@ $(function(){
         }
     }
 
+    //TODO make dodmg accept a number to override amount of damage dealt - or something like that...
+    var spells = [ {n:"Magic dart", /*rng: 5,*/ effect:function(you, them){ dodmg(you, them); },cost:1  },
+                   {n:"Heal", effect:function(you, them){ you.HP += 5; }, cost:2 } 
+                 ];
+
     function rangeAction(){
-        //TODO abstract into a function; call immediately when 88 is pressed.
-        writeks({"X":" Cycle through monsters","Enter":"Fire", "ESC" : " Cancel"});
+        //TODO call immediately when 88 is pressed.
+        writeks({"e":" List avaiable spells", "X":" Cycle through monsters","Enter":"Fire", "ESC" : " Cancel"});
+
+        if (keys[69]) { //List spells
+            for (t in spells){
+                $("#"+t+"F0").html( (t-0+1) + ": " + spells[t].cost + "MP - " + spells[t].n );
+            }
+        }
+        //49 == 1
+        //50 == 2 
+        //...
+
+        for (x in spells){
+            if (keys[x-0+49] && Character.MP > spells[x].cost){
+                //Character.MP -= spells[x].cost;
+                spells[x].effect(Character, monsters[whichTarget]);
+                keys[x-0+49] = false;
+
+                return true; //action has been taken
+            }
+        }
 
         if (keys[88]) {
             var di=1e6; //Infinity for all practical purposes
@@ -281,7 +304,7 @@ $(function(){
             
             //TODO
             //If we haven't found a target, set whichTarget back to -1 (so that we know we aren't targetting anything)
-
+            //Also writeStatus("No monsters in range") and go out of ranged mode.
         }
 
 
@@ -797,6 +820,8 @@ $(function(){
     var Character = { 
         x : 5,
         y : 8,
+        MP : 5,
+        maxMP : 5,
         HP : 24,
         maxHP : 24,
         money : 0,
