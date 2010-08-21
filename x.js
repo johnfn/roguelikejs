@@ -6,7 +6,7 @@ $(function(){
         vis=[],
         seen=[], 
         multipickup=false,
-        is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=true, shop, dungeonCache=[], wieldingBow = false;
+        is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=0,showMap=true, shop, dungeonCache=[], wieldingBow = false;
 
     while (t++<=255) keys[t] = false;
 
@@ -341,17 +341,22 @@ $(function(){
             var di=1e6; //Infinity for all practical purposes
 
             var start = whichTarget;
+            var found=false;
             //Find the next visible monster
             do { 
+                var m = monsters[whichTarget];
+                if (bounded(m.x-screenX) && bounded(m.y-screenY) && vis[m.x-screenX][m.y-screenY]) {
+                    found = true;
+                    break;
+                }
                 whichTarget++;
                 whichTarget %= monsters.length;
-                var m = monsters[whichTarget];
-                if (bounded(m.x-screenX) && bounded(m.y-screenY) && vis[m.x-screenX][m.y-screenY]) break;
-            } while (di > 1e5 && whichTarget != start)
+            } while (whichTarget != start)
             
-            //TODO
-            //If we haven't found a target, set whichTarget back to -1 (so that we know we aren't targetting anything)
-            //Also writeStatus("No monsters in range") and go out of ranged mode.
+            if (!found){
+                writeStatus("There are no monsters in range.");
+                ranging = false;
+            }
         }
 
 
@@ -486,6 +491,7 @@ $(function(){
             doMultiPickup();
         }else {
             checkLevelUp();
+            if (keys[88]) ranging=true;
 
             if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
 
@@ -589,7 +595,7 @@ $(function(){
         if (type == "!" || type == "?" || type == "[")
             wTile(j,i,"dd","dd","55",sz);
 
-        if (whichTarget != -1 && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
+        if (ranging && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
             wTile(j, i, "33", "33", "33", sz);
 
         if (mini && !vis)
@@ -703,7 +709,6 @@ $(function(){
         },
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; Inventory.display();},
         76:function(){statschange = statpoints;},
-        88:function(){ranging = !ranging; rangeAction()},
         77:function(){showMap = !showMap;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         188:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
