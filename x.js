@@ -5,7 +5,7 @@ $(function(){
     var keys=[],
         vis=[],
         seen=[], 
-        is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=false, shop, dungeonCache=[], wieldingBow = false;
+        is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=true, shop, dungeonCache=[], wieldingBow = false;
 
     while (t++<=255) keys[t] = false;
 
@@ -90,7 +90,6 @@ $(function(){
             for (i in inventory) if (inventory[i].ists) { writeStatus("Holy crap! YOU WIN!"); end(1); return;}
             writeStatus("A mysterious force returns you to the dungeon!"); curlevel=1; return;
         }
-        console.log(dungeonCache);
 
         var oldL = l;
         if (d==1) oldL++; else oldL--;
@@ -123,7 +122,8 @@ $(function(){
         var buff=8;
         curlevel=l;
         items=[], monsters=[];
-        size = buff*2+25* rsp(2,min(l/2+1,16)),roomn = rsp(2*size/40, 6*size/40);
+        size = buff*2+25* rsp(2,min(l/2+1,16)),roomn = rsp(2*size/40, 6*size/40); //TODO make roomn non-random
+        var numMonsters = ~~(roomn * 2);
 
         map=[];a=b=0;while(a++<size){map.push([]);while(b++<size)map[a-1].push("#");b=0}
         //map = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
@@ -133,18 +133,37 @@ $(function(){
         while(roomn--){
             (r={}).x=rnd(buff,size-buff-15);r.y=rnd(buff,size-buff-15);
             r.w=r.h=rnd(12,15);
+            if (numMonsters>0){
+                r.m = rnd(0,2);
+                numMonsters -= r.m;
+            }
             rooms.push(r);
         }
+        var up=relem(rooms), dn = relem(rooms);
+        start = [up,dn][d];
 
         for (ro in rooms){
             var wroom = Math.random() > .5;
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
+                var v = rnd(7,15);
                 for (var y=cr.y;y<cr.y+cr.h;++y){
-                    (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    rnd(0,999) < 4 ? items.push(new Item(x,y)):0;// :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
+                    if (cr != start && (x+y)%7==0 && cr.m-->0){
+                        monsters.push(new Monster(x,y,l));
+                    }
                     map[x][y] = wroom?"~":".";
                 }
             }
         }
+
+        /*
+         * TODO ensure that the number of placed monsters is at least numMonsters
+        t=0;
+        while(numMonsters>0){
+            rooms[t] += 1; 
+            t = t+1 % roomn;
+        }
+        */
         for (ro in rooms){
             rooms[ro].c=true;
             for (r2 in rooms){
@@ -163,11 +182,11 @@ $(function(){
         }
 
 
-        map[(up=relem(rooms)).x+3][up.y+3] = ">";
-        if (curlevel != 15){ 
-            map[(dn=relem(rooms)).x+4][dn.y+4] = "&lt;";
+        map[up.x+3][up.y+3] = ">";
+        if (curlevel != 15){  //TODO dungeon length could be part of the difficulty modifier. Hmm, but then we would need more monster types hurgle.
+            map[dn.x+4][dn.y+4] = "&lt;";
         } else {
-            tnarg.x = (dn=relem(rooms)).x+4;
+            tnarg.x = dn.x+4;
             tnarg.y = dn.y+4;
 
             items.push(tnarg);
@@ -400,20 +419,19 @@ $(function(){
         $("#hlth").html(" $: " + Character.money +B+ " Level: " + Character.LVL +B+ " Experience: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " Damage: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " Strength: " +t  +B+" Constitution: " + Character.CON +B+ " Defense: " + Character.DEF +B+ " Dungeon Level:" + curlevel +B + s);
     }
     /*
-     * drawMap()
+     * minimap()
      *
      * Renders a minimap to screen. Awesome.
-     *
-     * TODO: It would be neat if this would automatically be in the lower right side - like in Zelda or something.
      */
-    function drawMap(){
-        for (var i=0;i<size;i++){
-            for (var j=0;j<size;j++){
+    function minimap(){
+        var W = 20; //TODO Abstract
+        for (var i=max(Character.y-20,0);i<min(Character.y+20, size);i++){
+            for (var j=max(Character.x-20,0);j<min(Character.x+20, size);j++){
                 //todo: make the person show up as a glowing dot on the map
-                //todo: for larger maps, scale down the 3-factor
-                writeTileGeneric(j, i, 3, map[j][i],  seen[j][i]);
+                writeTileGeneric(j-screenX+6*W, i-screenY+7*W, 2, map[j][i], seen[j][i], true);
             }
         }
+        wTile(7*W+Character.x - screenX,6*W+ Character.y - screenY, "ff", "ff", "ff", 2);
 
         if (keys[27]){
             showMap = false;
@@ -450,10 +468,6 @@ $(function(){
             if (!showInventory) ssXY();
             return;
         }
-        if (showMap){
-            drawMap();
-            return;
-        }
 
         checkLevelUp();
 
@@ -472,6 +486,10 @@ $(function(){
         if (!tr) writeBoard(); 
         t=255;
         while(t--) keys[t]=false;
+
+        if (showMap){
+            minimap();
+        }
     }
 
     /*
@@ -528,7 +546,8 @@ $(function(){
         } */
     }
 
-    function writeTileGeneric(i, j, sz, type, vis){
+    function writeTileGeneric(i, j, sz, type, vis, mini){
+
         if (type == ".")  
             wTile(j,i,"55",vis?"ff":"bb","55",sz);
 
@@ -555,6 +574,9 @@ $(function(){
 
         if (whichTarget != -1 && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
             wTile(j, i, "33", "33", "33", sz);
+
+        if (mini && !vis)
+            wTile(j,i,"00","00","00",sz);
     }
 
     function writeBoard(){
