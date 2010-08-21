@@ -1,21 +1,11 @@
 //Typekit.load();
 $(function(){
 
-//TODO Consider a wrap() function that wraps things in spans or w/e
-    var descriptors = ["cool", "decent", "lame", "noobesque"];
-    //Note to self - first ones could be highest probability, etc.
-    //That would stave off the probability of getting like 20 pokey things in a row
-    var typedescriptions = { "[" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "pokey thing", "pair of boots", "helmet", "legplates", "chestplate" ],
-                             "!" : ["vial", "potion", "tonic"]
-    };
-    var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["regeneration", "poison", "strength", "constitution","defense"] 
-    };
 
     var keys=[],
         vis=[],
         seen=[], 
-        is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=false, shop, dungeonCache=[];
+        is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=false, shop, dungeonCache=[], wieldingBow = false;
 
     while (t++<=255) keys[t] = false;
 
@@ -150,7 +140,6 @@ $(function(){
             var wroom = Math.random() > .5;
             for (var x=(cr=rooms[ro]).x;x<cr.x+cr.w;++x){
                 for (var y=cr.y;y<cr.y+cr.h;++y){
-                    //debugger;
                     (q = rnd(0,999)) < 4 ? items.push(new Item(x,y)) :( q < 10 ? monsters.push(new Monster(x,y,l)) : 0); 
                     map[x][y] = wroom?"~":".";
                 }
@@ -162,7 +151,7 @@ $(function(){
                 var b=0;
                 if (!rooms[r2].c) {
                     if (!b || abs(rooms[r2].x-rooms[ro].x)+abs(rooms[r2].y-rooms[ro].y)<
-                        abs(rooms[r2].x-rooms[b].x) +abs(rooms[r2].y-rooms[b].y)){
+                              abs(rooms[r2].x-rooms[b ].x)+abs(rooms[r2].y-rooms[b ].y)){
                        b=r2; 
                     }
                 }
@@ -192,9 +181,20 @@ $(function(){
         t=up;//relem(rooms); //TODO definitely not here :)
         map[t.x][t.y] = "&";
         shop = new Shop(t); //TODO make it more random
+
+        /*
+         * Unique items.
+         *
+         * If I'm running out of space (unlikely...) then TODO i can make this into a bar delimited string like normal.
+         */
+        var Uniques = [{name: "The Greatsword (unique)", cls:"[", spec: {"STR": 5, "DMG":10, "DMX":15}}]; 
+        var uni = new Item(t.x+1, t.y+1, Uniques[0].cls, Uniques[0].spec, Uniques[0].name);
+        items.push(uni);
+
         t = [up,dn];
         Character.x = t[d].x+3+d;
         Character.y = t[d].y+3+d;
+
 
         oldPosition = {x : Character.x, y : Character.y } ; 
     }
@@ -302,6 +302,9 @@ $(function(){
         //50 == 2 
         //...
 
+        /*
+         * This snippet is for casting spells.
+         */
         for (x in spells){
             if (keys[x-0+49] && Character.MP > spells[x].cost){
                 //Character.MP -= spells[x].cost;
@@ -312,6 +315,9 @@ $(function(){
             }
         }
 
+        /*
+         * This snippet is to find the next available target.
+         */
         if (keys[88]) {
             var di=1e6; //Infinity for all practical purposes
 
@@ -331,17 +337,34 @@ $(function(){
 
 
         keys[88] = false;
-        if (keys[27]) {ranging=false;whichTarget=-1;} 
-        if (keys[13]){
-            //Attack
-            
-            if (dodmg(Character, monsters[whichTarget])){
-                whichTarget = -1;
-                ranging = false;
-            }
-            keys[13] = false;
+        if (keys[27]) {
+            ranging=false;
+            whichTarget=-1;
+        } 
 
-            return true; //action has been taken
+        /* 
+         * This snippet is for ranged attack (with a bow)
+         *
+         * TODO: The arrows should drop to the ground when you attack, sometimes.
+         */
+        if (keys[13]){
+            if (wieldingBow){ 
+                for (it in Inventory.items){ 
+                    t= Inventory.items[it];
+                    if (t.equipped && t.cls=="|" && t.count-->0){
+                        if (dodmg(Character, monsters[whichTarget])){
+                            whichTarget = -1;
+                            ranging = false;
+                        }
+                        keys[13] = false;
+                        return true; //action has been taken
+                    }
+                }
+                writeStatus("You must wield arrows along with your bow.");
+            } else {
+                writeStatus("You must wield a bow before you attack from a distance.");
+            }
+
         }
         //TODO: 
         //Let all the keys be reset by that helper function.
@@ -466,6 +489,14 @@ $(function(){
     }
 
     function initialize(){
+        Inventory = new Inven();
+        Inventory.addItem(new Item(0,0,"("));
+        Inventory.addItem(new Item(0,0,"|"));
+
+        generateLevel(1,0);
+        ssXY();
+
+        //TODO eventually get rid of this... it is left over from a poorer time
         for (var i=0;i<sz;i++) { 
           for (var j=0;j<sz;j++) 
             $("#board").append("<span id='"+i+"F"+j+"'></span>"); 
@@ -473,6 +504,8 @@ $(function(){
         } 
         setInterval(gameLoop,90);
         writeStatus("Some jerk buried the Amulet of Tnarg in this dungeon. It is your mission to get it!");
+
+        //function(forcecls, forcespec)
 
     }
     function bounded(x){
@@ -599,12 +632,8 @@ $(function(){
     function pickupItem(){
         for (i in items){
             if (intersect(items[i], Character)){
-                debugger;
-                console.log(items);
                 Inventory.addItem(items[i]);
-                console.log(items);
                 items.splice(i, 1);
-                console.log(items);
                 writeStatus("You pick an item up off the ground.");
                 return;
             }
@@ -619,7 +648,7 @@ $(function(){
         },
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; Inventory.display();},
         76:function(){statschange = statpoints;},
-        88:function(){ranging = !ranging;},
+        88:function(){ranging = !ranging; rangeAction()},
         77:function(){showMap = !showMap;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         188:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
@@ -670,8 +699,16 @@ $(function(){
         queue.push(ns);
     }
 
-    var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"}; 
-    function Item(x, y){
+    var descriptors = ["cool", "decent", "lame", "noobesque"];
+    var typedescriptions = { "[" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "pokey thing", "pair of boots", "helmet", "legplates", "chestplate" ],
+                             "!" : ["vial", "potion", "tonic"], //TODO, I never use these
+                             "(" : ["bow", "longbow"] 
+    };
+    var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
+                             "!" : ["regeneration", "poison", "strength", "constitution","defense"] 
+    };
+    var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"};  //Unique
+    function Item(x, y, forcecls, forcespec, forcename){
         this.x=x;
         this.y=y;
         this.stacks=true; //Can multiples of these take up just 1 inventory slot?
@@ -685,41 +722,57 @@ $(function(){
         this.n = "";
         this.typ="";
         this.d="";
-        this.init = function(forcecls) { 
-            with(this){      
-                t = cls = forcecls || relem(["!", "[", "$", "?"]);
-
-                if (t == "$"){
-                    spec["money"] = -rnd(curlevel, (1+curlevel)*7);
-                }
-                if (t == "?"){
-                    //TODO: Scrolls should not be randomized.
-                    n = "unidentified scroll";
-                }
-
-                var d2;
-                if (t== "["){
-                    this.stacks = false; //Each weapon is considered unique.
-                    //x to y damage
-                    //+N to strength
-                    d2=rnd(0,typedescriptions["["].length-1);
-                    d = typedescriptions[t][d2];
-                    if (d2<8){ 
-                        spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 3*curlevel)) + rnd(1,3+curlevel*2);
-                        spec["STR"] = max(0,rnd(0,100)-95);
-                        typ="w";
-                    } else { 
-                        spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
-                        typ =typedescriptions[t][d2];
+        this.init = function(forcecls, forcespec) { 
+            with(this){     
+                t = cls = forcecls || relem(["!", "(","|", "[", "$", "?"]);
+                
+                if (forcespec){
+                    spec = forcespec;
+                } else { 
+                    if (t == "$"){
+                        spec["money"] = -rnd(curlevel, (1+curlevel)*7);
                     }
-                    n=  relem(descriptors)  + " " +  d +  " of "+relem(finaldescriptors[t]);
-                }
-                if (t== "!"){
-                    typ = relem(finaldescriptors[t]);
-                    spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
-                }
-                n = "A " + n;
+                    if (t == "?"){
+                        //TODO: Scrolls should not be randomized.
+                        n = "unidentified scroll";
+                    }
+                    if (t == "("){
+                        stacks = false;
+                        d = relem(typedescriptions[t]); 
+                        typ="w";
+                        spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 3*curlevel)) + rnd(1,3+curlevel*2);
+                        n = relem(descriptors) + " " + d + " of " + relem(finaldescriptors["["]); 
+                    }
+                    if (t == "|"){ //Bolts/arrows for bow.
+                        stacks = true;
+                        count = rnd(20,25);
+                        typ = n = "Arrows"
+                    }
 
+                    var d2;
+                    if (t== "["){
+                        stacks = false; //Each weapon is considered unique.
+                        //x to y damage
+                        //+N to strength
+                        d2=rnd(0,typedescriptions["["].length-1);
+                        d = typedescriptions[t][d2];
+                        if (d2<8){ 
+                            spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 3*curlevel)) + rnd(1,3+curlevel*2);
+                            spec["STR"] = max(0,rnd(0,100)-95);
+                            typ="w";
+                        } else { 
+                            spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
+                            typ =typedescriptions[t][d2];
+                        }
+                        n=  relem(descriptors)  + " " +  d +  " of "+relem(finaldescriptors[t]);
+                    }
+                    if (t== "!"){
+                        typ = relem(finaldescriptors[t]);
+                        spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
+                    }
+                }
+                n = forcename || "A " + n;
+                cls = forcecls || cls;
             }
         }
         this.use = function() {
@@ -776,7 +829,7 @@ $(function(){
             }
             return (c == "$" || c == "!" || c=="?"); //destroy
         }
-        this.init(); 
+        this.init(forcecls, forcespec, forcename); 
     }
 
     //follow: 0 = never. 1 = after attacked. 2 = always, 3 = never moves...
@@ -918,7 +971,6 @@ $(function(){
             this.items.push(itm);
         }
         this.useItem = function(){
-            //debugger;
             var a=this.items[this.sel];
             if (!a.equipped){
                 //about to equip
@@ -928,6 +980,7 @@ $(function(){
                 }
             }
             wielding[a.typ] = !wielding[a.typ]; //This accounts not only for weapons and armor, but also for seen items (e.g. potions).
+            if(a.cls=="(") wieldingBow = wielding[a.typ];
             a.equipped = !a.equipped;
             if (a.use()){
                 this.items.splice(this.sel, 1);
@@ -966,7 +1019,7 @@ $(function(){
         this.hasTalis = false;
     };
 
-    var Inventory = new Inven();
+    var Inventory;
 
     /* Generically writes a list to screen.
      * See also Inventory, Highscore, To-do (if I ever get around to it...which I didn't)
@@ -989,8 +1042,6 @@ $(function(){
         screenY = Character.y - sz/2;
     }
 
-    generateLevel(1,0);
-    ssXY();
     initialize(); 
 
 });
