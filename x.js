@@ -5,6 +5,7 @@ $(function(){
     var keys=[],
         vis=[],
         seen=[], 
+        multipickup=false,
         is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=true, shop, dungeonCache=[], wieldingBow = false;
 
     while (t++<=255) keys[t] = false;
@@ -309,7 +310,6 @@ $(function(){
                  ];
 
     function rangeAction(){
-        //TODO call immediately when 88 is pressed.
         writeks({"e":" List avaiable spells", "X":" Cycle through monsters","Enter":"Fire", "ESC" : " Cancel"});
 
         if (keys[69]) { //List spells
@@ -355,7 +355,6 @@ $(function(){
         }
 
 
-        keys[88] = false;
         if (keys[27]) {
             ranging=false;
             whichTarget=-1;
@@ -375,7 +374,6 @@ $(function(){
                             whichTarget = -1;
                             ranging = false;
                         }
-                        keys[13] = false;
                         return true; //action has been taken
                     }
                 }
@@ -437,6 +435,25 @@ $(function(){
             showMap = false;
         }
     }
+
+    /*
+     * doMultiPickup()
+     */
+    function doMultiPickup(){
+        if (keys[65]){
+            while(pickupItem(0));
+            multipickup=false;
+        } else {
+            for (var x=0;x<10;x++){
+                if (keys[x+48]){
+                    pickupItem(x);
+                    multipickup=false;
+                    return;
+                }
+            }
+        }
+
+    }
     /*
      * gameLoop()
      *
@@ -456,34 +473,34 @@ $(function(){
          renderSidebar();
 
 
+        //Different game states to run through. Game states are basically just states where keypresses do different things.
         if (statschange) {
             checkStatsChange(); 
-            return;
-        }
-        if (showInventory){
+        }else if (showInventory){
             writeks({"Enter":" Use","ESC":" close Inventory","D":"rop"});
             $("#c").html("Inventory");
             Inventory.getKeys();
             Inventory.display();
             if (!showInventory) ssXY();
-            return;
+        }else if (multipickup){
+            doMultiPickup();
+        }else {
+            checkLevelUp();
+
+            if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
+
+            $("#c").html("Rogue");
+            writeks({"WASD":" Move", "QEZC":" Diag", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack",
+                    "<br>>":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" });
+
+            action = (ranging && rangeAction()) || getKeys();
+            if (action || resting) { 
+                resting = !(action || Character.HP == Character.maxHP) 
+                takeTurn();
+            }
+
+            if (!tr) writeBoard(); 
         }
-
-        checkLevelUp();
-
-        if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
-
-        $("#c").html("Rogue");
-        writeks({"WASD":" Move", "QEZC":" Diag", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack",
-                "<br>>":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" });
-
-        action = (ranging && rangeAction()) || getKeys();
-        if (action || resting) { 
-            resting = !(action || Character.HP == Character.maxHP) 
-            takeTurn();
-        }
-
-        if (!tr) writeBoard(); 
         t=255;
         while(t--) keys[t]=false;
 
@@ -614,7 +631,6 @@ $(function(){
                         nx=~~( d * (i-x0)/100)+x0, ny = ~~(d * (j-y0)/100)+y0;
                         if (nx>16||ny>16) continue;
                         //debugger;
-                        //console.log(vis);
                         vis[nx][ny] = true;
                         seen[nx+screenX][ny+screenY] = true; //replace t/f with "X""y"
                         if (text[nx][ny] == "#") break;
@@ -625,7 +641,6 @@ $(function(){
         
         //TODO consolidate with other thing... 
         
-        //console.log(text[ox-screenX,oy-screenY]);
 
         context.clearRect(0,0,500,500);
 
@@ -643,7 +658,6 @@ $(function(){
             }
         } 
 
-        //console.log($("#"+(ox-screenX)+"F"+(oy-screenY)).html());
 
 
         //style="background-color:black;color:red" 
@@ -651,16 +665,35 @@ $(function(){
 
         //$("#board").html(html);
     } 
-    function pickupItem(){
+    function pickupItem(which){
+        var underfoot = [];
         for (i in items){
             if (intersect(items[i], Character)){
-                Inventory.addItem(items[i]);
-                items.splice(i, 1);
-                writeStatus("You pick an item up off the ground.");
-                return;
+                underfoot.push(i);
             }
         }
+        if (!underfoot.length) return false;
+        if (underfoot.length == 1 || which != undefined){
+            i = 0;
+            if (which != undefined) i = which;
+            i = underfoot[i];
+            Inventory.addItem(items[i]);
+            writeStatus("You pick up " + items[i].n + ".");
+            items.splice(i, 1);
+            return true;
+        }
+        if (underfoot.length > 1){
+            writeStatus("There are many items here. Press a number for a specific item, or A for all.");
+            multipickup=true;
+            for (i in underfoot){
+                $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
+                $("#"+i+"F0").html(i + "-" + items[underfoot[i]].n);
+                console.log(i, items[underfoot[i]]);
+            }
+            return false;
+        }
         writeStatus("You swing your arms hopelessly at the ground, trying to find something.");
+        return false;
     }
 
     var m = {//83:function(){writeStatus("You have " + Character.HP + "/" + Character.maxHP + " HP.<br> You have been playing for " + moves + " moves.")},
@@ -1010,13 +1043,14 @@ $(function(){
         }
         this.dropItem = function(){
             var a=this.items[this.sel];
+            if (!a) return;
 
             if (a.cls=="[" && a.equipped){
                 itemuse();
             }
             setxy(a,Character);
             items.push(a);
-            inventory.splice(this.sel, 1);
+            this.items.splice(this.sel, 1);
         } 
         this.display = function(known){ //known -> force all objects to be known when looking (e.g. for shops)
             $("#board > span").html("").css({"background-color":"","color":""});
@@ -1030,8 +1064,8 @@ $(function(){
             }
         }
         this.getKeys = function(){
-            this.sel += keys[83] - keys[87]; keys[83]=keys[87]=false;
-            if (keys[13]) this.useItem(); keys[13] = false; //TODO STICKYKEYS
+            this.sel += keys[83] - keys[87]; 
+            if (keys[13]) this.useItem(); 
             if (keys[68]) this.dropItem();
 
             this.sel = max(0, min ( this.items.length - 1,this.sel));
