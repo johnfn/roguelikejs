@@ -12,7 +12,10 @@ $(function(){
                              "!" : ["regeneration", "poison", "strength", "constitution","defense"] 
     };
 
-    var keys=[], vis=[], seen=[], is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=false;
+    var keys=[],
+        vis=[],
+        seen=[], 
+        is=0, actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",ranging=false,whichTarget=-1,showMap=false, shop, dungeonCache=[];
 
     while (t++<=255) keys[t] = false;
 
@@ -97,6 +100,36 @@ $(function(){
             for (i in inventory) if (inventory[i].ists) { writeStatus("Holy crap! YOU WIN!"); end(1); return;}
             writeStatus("A mysterious force returns you to the dungeon!"); curlevel=1; return;
         }
+        console.log(dungeonCache);
+
+        var oldL = l;
+        if (d==1) oldL++; else oldL--;
+        var dc = dungeonCache[oldL];
+        if (!dc){
+            dc ={};
+            dc.map = map;
+            dc.items = items;
+            dc.monsters = monsters;
+            dc.shop = shop;
+            dc.posx = Character.x;
+            dc.posy = Character.y;
+            dc.seen = seen;
+        }
+        dungeonCache[oldL] = dc;
+        //Store the current (before you create this level) level in the dungeon cache
+        dc = dungeonCache[l];
+        if (dc){
+            //Pull a previously created dungeon out of the cache, if it exists.
+            map = dc.map;
+            items = dc.items;
+            monsters = dc.monsters;
+            shop = dc.shop;
+            Character.x = dc.posx;
+            Character.y = dc.posy;
+            seen = dc.seen;
+            return;
+        }
+
         var buff=8;
         curlevel=l;
         items=[], monsters=[];
@@ -148,28 +181,17 @@ $(function(){
             tnarg.x = (dn=relem(rooms)).x+4;
             tnarg.y = dn.y+4;
 
-            //map[tnarg.x,tnarg.y] = "P"; //DEBUG
             items.push(tnarg);
         }
-
-        /*
-        var s = ""; //DEBUG
-        for (var i=0;i<size;i++){ //DEBUG
-            for (var j=0;j<size;j++){//DEBUG
-                s += map[i][j];//DEBUG
-            }//DEBUG
-            s+="<br/>";//DEBUG
-        }//DEBUG
-
-        $("#dbg").html(s); //DEBUG
-        //debugger; 
-        
-        */
         
         seen=[];a=b=0;
         while(a++<size){seen.push([]);while(b++<size)seen[a-1].push(false);b=0}
 
         //seen= rng(size).map(function(){return rng(size).map(fgen(false))}); 
+
+        t=up;//relem(rooms); //TODO definitely not here :)
+        map[t.x][t.y] = "&";
+        shop = new Shop(t); //TODO make it more random
         t = [up,dn];
         Character.x = t[d].x+3+d;
         Character.y = t[d].y+3+d;
@@ -339,6 +361,7 @@ $(function(){
         for (i in monsters) monsters[i].update(oldPosition);
         
         intersectItems();
+        if (pc == "&") writeStatus("You see a store!");
         if (pc == ">") writeStatus("You see stairs leading upward.");
         if (pc == "&lt;") writeStatus("You see stairs leading downward.");
         ssXY();
@@ -482,6 +505,9 @@ $(function(){
         if (type == "#")  
             wTile(j,i,"66","66","66",sz);
 
+        if (type == "&")  
+            wTile(j,i,"00","00","00",sz);
+        
         if (type == "&nbsp;")
             wTile(j,i,"00","00","00",sz);
 
@@ -597,7 +623,15 @@ $(function(){
         77:function(){showMap = !showMap;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
         188:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
-        190:function(){if (pc == ">") { writeStatus("You ascend the staircase to safer ground."); generateLevel(--curlevel,1); } else {writeStatus("There's no staircase here.");} }
+        190:function(){
+            if (pc == ">") { 
+                writeStatus("You ascend the staircase to safer ground."); 
+                generateLevel(--curlevel,1); 
+            } else {
+                if (pc == "&") shop.display(); 
+                else writeStatus("There's no staircase here.");
+            } 
+        }
     };
     /*
      * getKeys()
@@ -645,15 +679,15 @@ $(function(){
         this.cls = "";
         this.equipped = false;
         this.spec = {}; 
-        this.N=function(){
-            this.n= this.cls=="!"? "A potion of " + (this.typ in wielding ? this.typ : "mystery" ) : this.n;
+        this.N=function(known){
+            this.n= this.cls=="!"? "A potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
         } 
         this.n = "";
         this.typ="";
         this.d="";
-        this.init = function() { 
+        this.init = function(forcecls) { 
             with(this){      
-                t = cls = relem(["!", "[", "$", "?"]);
+                t = cls = forcecls || relem(["!", "[", "$", "?"]);
 
                 if (t == "$"){
                     spec["money"] = -rnd(curlevel, (1+curlevel)*7);
@@ -840,10 +874,30 @@ $(function(){
         }
     };
 
-    var Inventory = {
-        sel : 0,
-        items : [],
-        addItem : function(itm){
+    function Shop(r) { //The shop is initialized in room r.
+        this.x=r.x+5;
+        this.y=r.y+5;
+        this.items = [];
+        this.name = "";
+        this.inv = new Inven();
+        this.display = function(){
+            this.inv.display();
+        }
+
+        //Initialization
+        //TODO for cuteness sake: add "Waterfront" if it is in the water (lol)
+        var owner=relem(["Gregor's", "Lydia's", "Eddard's"]);
+        var type=relem(["Potionista", "Armory", "Scrolls", "Sundries"]);
+
+        for (var x=0;x<rnd(5,9);x++){
+            this.inv.addItem(new Item("?"));
+        }
+    }
+
+    function Inven() {
+        this.sel = 0;
+        this.items = [];
+        this.addItem = function(itm){
             var li;
             if (this.items.length>15) {
                 writeStatus("You are carrying too much!"); 
@@ -862,8 +916,8 @@ $(function(){
             }
             //Either stacking failed or it doesn't stack at all.
             this.items.push(itm);
-        },
-        useItem : function(){
+        }
+        this.useItem = function(){
             //debugger;
             var a=this.items[this.sel];
             if (!a.equipped){
@@ -878,8 +932,8 @@ $(function(){
             if (a.use()){
                 this.items.splice(this.sel, 1);
             }
-        },
-        dropItem : function(){
+        }
+        this.dropItem = function(){
             var a=this.items[this.sel];
 
             if (a.cls=="[" && a.equipped){
@@ -888,18 +942,19 @@ $(function(){
             setxy(a,Character);
             items.push(a);
             inventory.splice(this.sel, 1);
-        }, 
-        display : function(){
+        } 
+        this.display = function(known){ //known -> force all objects to be known when looking (e.g. for shops)
             $("#board > span").html("").css({"background-color":"","color":""});
             for (i in this.items){
                 var c = this.items[i];
                 var desc = "";
                 if (this.sel==i) desc += "*"; else desc+= c.equipped ? "+" : "-"; 
+                c.N(known);
                 desc += c.count + "x " + c.n + (c.equipped ? "[equipped]" : ""); 
                $("#"+i+"F0").html(desc);
             }
-        },
-        getKeys : function(){
+        }
+        this.getKeys = function(){
             this.sel += keys[83] - keys[87]; keys[83]=keys[87]=false;
             if (keys[13]) this.useItem(); keys[13] = false; //TODO STICKYKEYS
             if (keys[68]) this.dropItem();
@@ -907,9 +962,11 @@ $(function(){
             this.sel = max(0, min ( this.items.length - 1,this.sel));
             if (keys[27]) //ESC
                 showInventory = false; 
-        },
-        hasTalis : false
+        }
+        this.hasTalis = false;
     };
+
+    var Inventory = new Inven();
 
     /* Generically writes a list to screen.
      * See also Inventory, Highscore, To-do (if I ever get around to it...which I didn't)
