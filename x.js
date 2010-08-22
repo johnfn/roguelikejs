@@ -257,12 +257,14 @@ $(function(){
      *
      * In the special case of money, it auto-pickups.
      *
-     * TODO: Make it autopickup other types of items.
      */
     function intersectItems(){
         for (i in items){
             items[i].N(); //Ensure that it has the correct name.
             if (intersect(Character, items[i])){
+                 t = items[i].cls;
+                 if (t=="?" || t=="!") //TODO if I add rings necklaces etc, add them hear.
+                     pickupItem(undefined, true); 
                  if (items[i].cls == "$"){
                     items[i].use();
                     items.splice(i,1); //TODO: code duplication --sorta :: BAD (maybe have an "in inventory" flag?)
@@ -348,13 +350,15 @@ $(function(){
 
 
     //TODO BALANCE: Heal is pretty atrocious in later levels. Given that MP should scale... hur...
-    var spells = [ {n:"Wrath",    effect:function(you, them){ effect("strength"); }, intreq:2, cost:1 },
-                   {n:"Heal",     effect:function(you, them){ you.HP += 5; }       , intreq:2, cost:2 },
+    //TODO: writeStatus on all of them.
+    var spells = [ {n:"Wrath",    effect:function(you, them){ effect("strength"); writeStatus("You feel vengeful!"); }, intreq:2, cost:1 },
+                   {n:"Heal",     effect:function(you, them){ you.HP += 5; writeStatus("You feel better."); }       , intreq:2, cost:2 },
                    {n:"Teleport", effect:teleport                                  , intreq:3, cost:3 },
                    {n:"Reveal Monsters", effect:function(y,t){Character.revealm=-15-2; queue.push({t:15,rel:0,s:"revealm",v:1,n:"Reveal"});} , intreq:2, cost:2 },
                    {n:"Reveal Items", effect:function(y,t){Character.reveali=-15-2; queue.push({t:15,rel:0,s:"reveali",v:1,n:"Reveal"});} , intreq:2, cost:2 },
-                   {n:"Enchant Weapon I", effect:function(y,t){enchantWeapon(1);} ,  intreq:2, cost:4 },
-                   {n:"Enchant Weapon II", effect:function(y,t){enchantWeapon(2);} , intreq:2, cost:4 }
+                   {n:"Enchant Weapon I", effect:function(y,t){enchantWeapon(1);} ,  intreq:4, cost:4 },
+                   {n:"Enchant Weapon II", effect:function(y,t){enchantWeapon(2);} , intreq:6, cost:4 },
+                   {n:"Enchant Weapon III", effect:function(y,t){enchantWeapon(3);} , intreq:8, cost:4 }
                  ];
 
     function rangeAction(){
@@ -443,8 +447,6 @@ $(function(){
             }
 
         }
-        //TODO: 
-        //Let all the keys be reset by that helper function.
 
         //writeBoard();
 
@@ -485,7 +487,6 @@ $(function(){
         var W = 20; //TODO Abstract
         for (var i=max(Character.y-20,0);i<min(Character.y+20, size);i++){
             for (var j=max(Character.x-20,0);j<min(Character.x+20, size);j++){
-                //todo: make the person show up as a glowing dot on the map
                 writeTileGeneric(j-screenX+6*W, i-screenY+7*W, 2, map[j][i], seen[j][i], true);
             }
         }
@@ -716,9 +717,6 @@ $(function(){
             }
         }
         
-        //TODO consolidate with other thing... 
-        
-
         context.clearRect(0,0,500,500);
 
         
@@ -742,7 +740,7 @@ $(function(){
 
         //$("#board").html(html);
     } 
-    function pickupItem(which){
+    function pickupItem(which, silence){
         var underfoot = [];
         for (i in items){
             if (intersect(items[i], Character)){
@@ -759,6 +757,7 @@ $(function(){
             items.splice(i, 1);
             return true;
         }
+        if (silence) return false;
         if (underfoot.length > 1){
             writeStatus("There are many items here. Press a number for a specific item, or A for all.");
             multipickup=true;
@@ -871,7 +870,7 @@ $(function(){
         this.wtyp="";
         this.init = function(forcecls, forcespec) { 
             with(this){     
-                t = cls = "?"; //forcecls || relem(["!", "(","|", "[", "$", "?"]);
+                t = cls = forcecls || relem(["!", "(","|", "[", "$", "?"]);
                 
                 if (forcespec){
                     spec = forcespec;
