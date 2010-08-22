@@ -330,7 +330,6 @@ $(function(){
 
         /*var ns = {t:15,rel:1,s:"STR",v:1,n:"+STR"};
         ns.n = t;*/
-        //if (Character.reveal == -15) debugger;
         for (V in queue){
             t=queue[V];
             st[t.n]?st[t.n]++:st[t.n]=1;
@@ -709,7 +708,6 @@ $(function(){
                     for (var d=0;d<100;d++){
                         nx=~~( d * (i-x0)/100)+x0, ny = ~~(d * (j-y0)/100)+y0;
                         if (nx>16||ny>16) continue;
-                        //debugger;
                         vis[nx][ny] = true;
                         seen[nx+screenX][ny+screenY] = true; //replace t/f with "X""y"
                         if (text[nx][ny] == "#") break;
@@ -837,7 +835,8 @@ $(function(){
                              "(" : ["bow", "longbow"] 
     };
     var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["regeneration", "poison", "strength", "intelligence","defense"] 
+                             "!" : ["regeneration", "poison", "strength", "intelligence","defense"],
+                             "?" : ["teleport", "money", "healing", "stabbing self", "experience", "worthlessness", "curse", "enchant I", "enchant II"]
     };
     var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"};  //Unique
 
@@ -860,7 +859,11 @@ $(function(){
         this.equipped = false;
         this.spec = {}; 
         this.N=function(known){
-            this.n= this.cls=="!"? "A potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
+            if(this.cls=="?"){
+                this.n = "A scroll of " + (this.typ in wielding || known ? this.typ : "mystery");
+            } else { 
+                this.n= this.cls=="!"? "A potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
+            }
         } 
         this.n = "";
         this.typ="";
@@ -868,7 +871,7 @@ $(function(){
         this.wtyp="";
         this.init = function(forcecls, forcespec) { 
             with(this){     
-                t = cls = forcecls || relem(["!", "(","|", "[", "$", "?"]);
+                t = cls = "?"; //forcecls || relem(["!", "(","|", "[", "$", "?"]);
                 
                 if (forcespec){
                     spec = forcespec;
@@ -876,10 +879,7 @@ $(function(){
                     if (t == "$"){
                         spec["money"] = -rnd(curlevel, (1+curlevel)*7);
                     }
-                    if (t == "?"){
-                        //TODO: Scrolls should not be randomized.
-                        n = "unidentified scroll";
-                    }
+
                     if (t == "("){
                         stacks = false;
                         d = relem(typedescriptions[t]); 
@@ -910,9 +910,8 @@ $(function(){
                         }
                         n=  relem(descriptors)  + " " +  d +  " of "+relem(finaldescriptors[t]);
                     }
-                    if (t== "!"){
+                    if (t== "!" || t == "?"){
                         typ = relem(finaldescriptors[t]);
-                        spec["HP"] = rnd( curlevel*2+1, (curlevel+3)*6);
                     }
                 }
                 n = forcename || "A " + n;
@@ -929,27 +928,27 @@ $(function(){
                     writeStatus("You read the scroll.");
                     showInventory = false;
                     //for now, just teleport.
-                    var r=rnd(0,100);
-                    if (r>70){ 
+                    //
+
+                    //"?" : ["teleport", "money", "healing", "stabbing self", "experience", "worthlessness", "curse", "enchant I", "enchant II"]
+                    typ;
+                    if (typ[0]=="t"){
                         teleport();
-                        return;
-                    } 
-                    (r>65) ? //TODO THIS IS MAJORLY ABSTRACTABLE, much in the same way as potions O_O they are almost the same...
-                        (Character.money += (t=rsp(5,100)),
-                        writeStatus("The scroll turns into gold!"))
-                    : (r>50) ? 
-                        (Character.HP += 30,
-                        writeStatus(fb))
-                    : (r>35)?
-                        (Character.HP -= 10,
-                        writeStatus("OUCH!"))
-                    : (r>30)?
-                        (statpoints++,
-                        writeStatus("You gain a stat point! (L)"))
-                    : (r>20) ?
-                        (writeStatus("You feel experienced."),
-                        Character.EXP+=curlevel*8)
-                    :  (writeStatus("Nothing happens."))
+                    } else if (typ[0] == "m"){
+                        Character.money += rsp(5,100);
+                        writeStatus("The scroll turns into gold!");
+                    } else if (typ[0] == "s"){
+                        Character.HP -= 7;
+                        writeStatus("The scroll stabs you!");
+                    } else if (typ[0] == "h"){
+                        Character.HP += 8;
+                        writeStatus(fb);
+                    } else if (typ[0] == "e"){
+                        writeStatus("You feel experienced.");
+                        Character.EXP+=curlevel*5;
+                    } else if (typ[0] == "w"){
+                        writeStatus("Your nose itches.");
+                    }
                 } else {
                     if (equipped) { 
                         for (x in s) Character[x] += s[x] != null ? s[x] : 0;
@@ -967,7 +966,12 @@ $(function(){
                     }
                 }
             }
-            return (c == "$" || c == "!" || c=="?"); //destroy
+            if (c == "$" || c == "!" || c=="?") {
+                this.equipped = false; //TODO I shouldn't have to do this... code restructuring maybe... too tird to figure out
+                return !--this.count; //TODO potential bug if there is 0 beforehand, but then again, that's a bug in itself.
+            }
+
+            return false;
         }
         this.init(forcecls, forcespec, forcename); 
     }
@@ -1124,7 +1128,7 @@ $(function(){
             var a=this.items[this.sel];
             if (!a.equipped){
                 //about to equip
-                if ((a.wtyp=="[" )&&wielding[a.typ]) { 
+                if (a.wtyp=="[" && wielding[a.typ]) { 
 
                     //Unequip any other equipped item of that type
                     var success = false;
