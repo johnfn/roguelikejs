@@ -104,6 +104,7 @@ $(function(){
             dc.posx = Character.x;
             dc.posy = Character.y;
             dc.seen = seen;
+            Character.MP=5;
         }
         dungeonCache[oldL] = dc;
         //Store the current (before you create this level) level in the dungeon cache
@@ -207,9 +208,13 @@ $(function(){
          *
          * If I'm running out of space (unlikely...) then TODO i can make this into a bar delimited string like normal.
          */
-        var Uniques = [{name: "The Greatsword (unique)", cls:"[", spec: {"STR": 5, "DMG":10, "DMX":15}}]; 
-        var uni = new Item(t.x+1, t.y+1, Uniques[0].cls, Uniques[0].spec, Uniques[0].name);
+        var uniqueItems = [{name: "The Greatsword (unique)", cls:"[", spec: {"STR": 5, "DMG":10, "DMX":15}}]; 
+        var uni = new Item(t.x+1, t.y+1, uniqueItems[0].cls, uniqueItems[0].spec, uniqueItems[0].name);
         items.push(uni);
+
+
+        //Create a unique monster on this level.
+        //monsters.push(new Monster(t.x+2,t.y+2,l, true));
 
         t = [up,dn];
         Character.x = t[d].x+3+d;
@@ -277,12 +282,41 @@ $(function(){
     function checkStatsChange(){
         writegenericlist(0,0);
         writeks({"D":"efense","S":"trength","C":"onstitution"});
-        t = {68:"DEF",83:"STR",67:"CON"};
-        $("#1F1").html("Gain a stat: (D)efense (S)trength (C)onstitution." );
+        t = {68:"DEF",83:"STR",67:"INT"};
+        $("#1F1").html("Gain a stat: (D)efense (S)trength (I)ntelligence." );
         
   
         for (x in t) if (keys[x]) {Character[t[x]]++; writeStatus(--statpoints + " points left.");}
         statschange = statpoints>0;
+    }
+
+    function enchantWeapon(lv){
+
+        for (it in Inventory.items){ 
+            t= Inventory.items[it];
+            //TODO wtyp should just point to the item, so i don't have to search for it all the time...
+            if (t.equipped && t.wtyp=="["){
+                //TODO for bows, should enhance DEX instead.
+                //TODO weapons should show their enchancements.
+                !t.spec["STR"] ? t.spec["STR"]=0:0;
+                if (t.spec["STR"] == lv-1){
+                    t.spec["STR"] = lv;
+                    Character.STR++; //Now this is a beautiful hack. The c.str is removed when the item is not wielded, so it all works out...
+
+                    writeStatus("The weapon glows light blue!");
+                    return;
+                } else {
+                    if (t.spec["STR"] >= lv) { 
+                        writeStatus("This weapon has already been enchanted to that level.");
+                    } else {
+                        writeStatus("This weapon has not been enchanted enough.");
+                    }
+                    
+                    return true; //FAILURE
+                }
+            }
+        }
+        return true; //Couldn't find an equipped weapon, so failing instead.
     }
 
     /*
@@ -293,10 +327,14 @@ $(function(){
 
     function statusEffects(){
         st={};
+
+        /*var ns = {t:15,rel:1,s:"STR",v:1,n:"+STR"};
+        ns.n = t;*/
+        //if (Character.reveal == -15) debugger;
         for (V in queue){
             t=queue[V];
-            st[t.n]=(!!st[t.n])+1; //deep dark magic
-            if (t.t--<0){
+            st[t.n]?st[t.n]++:st[t.n]=1;
+            if (t.t--<0){ //Status effect has run out of time?
                 queue.splice(V, 1);
                 if (t.rel) t.v*=-1; t.rel=0;
             }
@@ -305,16 +343,27 @@ $(function(){
     }
 
     //TODO make dodmg accept a number to override amount of damage dealt - or something like that...
-    var spells = [ {n:"Magic dart", /*rng: 5,*/ effect:function(you, them){ dodmg(you, them); },cost:1  },
-                   {n:"Heal", effect:function(you, them){ you.HP += 5; }, cost:2 } 
+
+    //TODO If i implement a WIZARD CLASS, use this. Otherwise... meh
+    // {n:"Magic dart", /*rng: 5,*/ effect:function(you, them){ dodmg(you, them); },cost:1  },
+
+
+    //TODO BALANCE: Heal is pretty atrocious in later levels. Given that MP should scale... hur...
+    var spells = [ {n:"Wrath",    effect:function(you, them){ effect("strength"); }, intreq:2, cost:1 },
+                   {n:"Heal",     effect:function(you, them){ you.HP += 5; }       , intreq:2, cost:2 },
+                   {n:"Teleport", effect:teleport                                  , intreq:3, cost:3 },
+                   {n:"Reveal Monsters", effect:function(y,t){Character.revealm=-15-2; queue.push({t:15,rel:0,s:"revealm",v:1,n:"Reveal"});} , intreq:2, cost:2 },
+                   {n:"Reveal Items", effect:function(y,t){Character.reveali=-15-2; queue.push({t:15,rel:0,s:"reveali",v:1,n:"Reveal"});} , intreq:2, cost:2 },
+                   {n:"Enchant Weapon I", effect:function(y,t){enchantWeapon(1);} ,  intreq:2, cost:4 },
+                   {n:"Enchant Weapon II", effect:function(y,t){enchantWeapon(2);} , intreq:2, cost:4 }
                  ];
 
     function rangeAction(){
         writeks({"e":" List avaiable spells", "X":" Cycle through monsters","Enter":"Fire", "ESC" : " Cancel"});
 
         if (keys[69]) { //List spells
-            for (t in spells){
-                $("#"+t+"F0").html( (t-0+1) + ": " + spells[t].cost + "MP - " + spells[t].n );
+            for (t in spells) {
+                $("#"+t+"F0").html( (t-0+1) + ": " + spells[t].cost + "MP - " + spells[t].n).css("color", spells[t].intreq > Character.INT ? "gray" : "black");
             }
         }
         //49 == 1
@@ -325,13 +374,21 @@ $(function(){
          * This snippet is for casting spells.
          */
         for (x in spells){
-            if (keys[x-0+49] && Character.MP > spells[x].cost){
-                //Character.MP -= spells[x].cost;
-                spells[x].effect(Character, monsters[whichTarget]);
-                keys[x-0+49] = false;
+            if (keys[x-0+49]){
+                if (Character.MP < spells[x].cost){
+                    writeStatus("You don't have sufficient mana!");
+                } else if (spells[x].intcost > Character.INT){
+                    writeStatus("You need higher INT.");
+                } else { 
+                    //effect() returns true on FAILURE. returns nothing/undefined on success.
+                    if (!spells[x].effect(Character, monsters[whichTarget])){ 
+                        Character.MP -= spells[x].cost;
+                        keys[x-0+49] = false;
 
-                return true; //action has been taken
-            }
+                        return true; //action has been taken
+                    }
+                }
+            } 
         }
 
         /*
@@ -355,7 +412,6 @@ $(function(){
             
             if (!found){
                 writeStatus("There are no monsters in range.");
-                ranging = false;
             }
         }
 
@@ -419,7 +475,7 @@ $(function(){
     }
     function renderSidebar(){
         s="";for (x in st)s += x + " x " + st[x] + B;
-        $("#hlth").html(" $: " + Character.money +B+ " Level: " + Character.LVL +B+ " Experience: " + Character.EXP + "/" + Character.NXT +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+ " Damage: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " Strength: " +t  +B+" Constitution: " + Character.CON +B+ " Defense: " + Character.DEF +B+ " Dungeon Level:" + curlevel +B + s);
+        $("#hlth").html(" $: " + Character.money +B+ "Level " + Character.LVL +" (" + Character.EXP + "/" + Character.NXT+")" +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+"MP:" + Character.MP + "/5"+B+ " Damage: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " Strength: " +t  +B+" Intelligence: " + Character.INT +B+ " Defense: " + Character.DEF +B+ " Dungeon Level:" + curlevel +B + s);
     }
     /*
      * minimap()
@@ -432,6 +488,17 @@ $(function(){
             for (var j=max(Character.x-20,0);j<min(Character.x+20, size);j++){
                 //todo: make the person show up as a glowing dot on the map
                 writeTileGeneric(j-screenX+6*W, i-screenY+7*W, 2, map[j][i], seen[j][i], true);
+            }
+        }
+        for (i in monsters){
+            if (Character.revealm){
+                writeTileGeneric(monsters[i].y-screenX+6*W, monsters[i].x-screenY+7*W, 2, "j", seen[j][i]);
+            }
+        }
+
+        for (i in items){
+            if (Character.reveali){
+                writeTileGeneric(items[i].x-screenX+6*W, items[i].y-screenY+7*W, 2, "?", seen[j][i]);
             }
         }
         wTile(7*W+Character.x - screenX,6*W+ Character.y - screenY, "ff", "ff", "ff", 2);
@@ -470,7 +537,7 @@ $(function(){
         oldPosition = {x : Character.x, y : Character.y } ; 
         var action = false;
 
-        Character.maxHP = Character.CON*7 + 10*Character.LVL; 
+        Character.maxHP = 12*Character.LVL; 
 
          for (i in inventory) inventory[i].N() 
 
@@ -491,7 +558,10 @@ $(function(){
             doMultiPickup();
         }else {
             checkLevelUp();
-            if (keys[88]) ranging=true;
+            if (keys[88]) {
+                ranging=true;
+                whichTarget=0;
+            }
 
             if (Character.HP<0) {writeStatus("You have died. :("); end(0);}
 
@@ -499,7 +569,7 @@ $(function(){
             writeks({"WASD":" Move", "QEZC":" Diag", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack",
                     "<br>>":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" });
 
-            action = (ranging && rangeAction()) || getKeys();
+            action = (ranging && rangeAction()) || (!ranging && getKeys());
             if (action || resting) { 
                 resting = !(action || Character.HP == Character.maxHP) 
                 takeTurn();
@@ -588,6 +658,9 @@ $(function(){
 
         if (type == "c" || type == "j" || type == "g" || type == "r")
             wTile(j,i,"ff","55","55",sz);
+
+        if (type == "U")
+            wTile(j,i,"ff","55","ff",sz);
 
         if (type == ">" || type == "<")
             wTile(j,i,"66","66","33",sz);
@@ -694,7 +767,6 @@ $(function(){
             for (i in underfoot){
                 $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
                 $("#"+i+"F0").html(i + "-" + items[underfoot[i]].n);
-                console.log(i, items[underfoot[i]]);
             }
             return false;
         }
@@ -752,7 +824,7 @@ $(function(){
         
         if(t[0]=="p")ns.s="HP", ns.rel=0, ns.v=-1;
         if(t[0]=="r")ns.s="HP", ns.rel=0;
-        t[0]=="c"? ns.s="CON":0;
+        t[0]=="i"? ns.s="INT":0;
         t[0]=="d"? ns.s="DEF":0;
 
         Character[ns.s] += ns.v; //First use for relative buffs (like regen) and ONLY use for nonrelative buffs (+1 STR etc)
@@ -765,9 +837,20 @@ $(function(){
                              "(" : ["bow", "longbow"] 
     };
     var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["regeneration", "poison", "strength", "constitution","defense"] 
+                             "!" : ["regeneration", "poison", "strength", "intelligence","defense"] 
     };
     var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"};  //Unique
+
+    function teleport(){
+        var x,y;
+        do{
+            x = rsp(0,size);
+            y = rsp(0,size);
+        } while (map[x][y] == "#");
+        Character.x=x;
+        Character.y=y;
+        writeStatus("Hm...Where are you?");
+    }
     function Item(x, y, forcecls, forcespec, forcename){
         this.x=x;
         this.y=y;
@@ -848,14 +931,7 @@ $(function(){
                     //for now, just teleport.
                     var r=rnd(0,100);
                     if (r>70){ 
-                        var x,y;
-                        do{
-                            x = rsp(0,size);
-                            y = rsp(0,size);
-                        } while (map[x][y] == "#");
-                        Character.x=x;
-                        Character.y=y;
-                        writeStatus("Hm...Where are you?");
+                        teleport();
                         return;
                     } 
                     (r>65) ? //TODO THIS IS MAJORLY ABSTRACTABLE, much in the same way as potions O_O they are almost the same...
@@ -878,7 +954,7 @@ $(function(){
                     if (equipped) { 
                         for (x in s) Character[x] += s[x] != null ? s[x] : 0;
                         if (c=="!") {
-                            //Potion types: ["Regeneration", "Poison", "Strength", "Constitution","Defense"]
+                            //Potion types: ["Regeneration", "Poison", "Strength", "intelligence","Defense"]
                             effect(t=typ);
 
                             writeStatus("The potion tastes like " + t + "!"); //Heheheh 
@@ -910,7 +986,7 @@ $(function(){
      * Special notes about poison: Only tack on the 1 at the end if a monster poisons. Don't tack it on if it doesn't.
      *
      */
-    ms = ["c|cobol|1|5|3|14|0|3",
+    ms = ["c|cobol|1|3|5|14|0|3",
           "r|rat|1|2|3|8|1|4",
           "g|goblin|1|3|4|16|1|1",
           "j|jerk|2|2|6|9|1|2",
@@ -919,9 +995,18 @@ $(function(){
          ]
     var MNS=ms.length;
 
+    ums = ["U|Andrius|1|2|4|30|1|6",
+           "U|Dmitri|1|2|5|24|1|6"
+        ];
 
-    function Monster(x, y, l) { 
-        do s=this.stats = ms[this.z=rsp(0,MNS)].split("|"); while(this.stats[2]>l);
+    var UMNS=ums.length;
+    function Monster(x, y, l, uniq) { 
+        if (uniq){
+            do s=this.stats = ums[this.z=rsp(0,UMNS)].split("|"); while(this.stats[2]>l);
+        } else { 
+            do s=this.stats = ms[this.z=rsp(0,MNS)].split("|"); while(this.stats[2]>l);
+        }
+        this.u=uniq;
         this.rep = s[0]; 
         this.x = x;
         this.y = y;
@@ -931,7 +1016,7 @@ $(function(){
         this.AGL = s[7]-0;
         this.POI = !!s[8]; //T if exists, F otherwise. 
         this.DEF = 1;
-        this.n = "The " + s[1];
+        this.n = this.u ? s[1] : "The " + s[1];
         this.hsh = rnd(0,1e9);
         this.maxHP = this.HP = s[5]; //TODO: Randomize?
         this.follow = s[6]-0;
@@ -972,7 +1057,6 @@ $(function(){
         x : 5,
         y : 8,
         MP : 5,
-        maxMP : 5,
         HP : 24,
         maxHP : 24,
         money : 0,
@@ -981,10 +1065,12 @@ $(function(){
         AGL : 4,
         EXP : 0, 
         NXT : 10,
-        CON : 2,
+        INT : 2,
         STR : 2,
         DEF : 1,
         LVL : 1,
+        revealm : false, //Reveal monsters spell.
+        reveali : false, //Reveal items spell.
         n : "You",
         rep : function() { 
             return (this.HP == this.maxHP) ? "@" : (this.HP / this.maxHP).toString()[2];
