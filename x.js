@@ -782,6 +782,7 @@ $(function(){
         this.n = "";
         this.typ="";
         this.d="";
+        this.wtyp="";
         this.init = function(forcecls, forcespec) { 
             with(this){     
                 t = cls = forcecls || relem(["!", "(","|", "[", "$", "?"]);
@@ -833,6 +834,9 @@ $(function(){
                 }
                 n = forcename || "A " + n;
                 cls = forcecls || cls;
+
+                wtyp = cls;
+                if (cls=="(") wtyp = "[";
             }
         }
         this.use = function() {
@@ -1034,9 +1038,22 @@ $(function(){
             var a=this.items[this.sel];
             if (!a.equipped){
                 //about to equip
-                if (a.cls=="["&&wielding[a.typ]) { 
-                    writeStatus("You can't wield another item of that type."); 
-                    return;
+                if ((a.wtyp=="[" )&&wielding[a.typ]) { 
+
+                    //Unequip any other equipped item of that type
+                    var success = false;
+                    for (x in this.items){
+                        if (this.items[x].equipped && this.items[x].wtyp == a.wtyp){
+                            var oldsel = this.sel;
+                            this.sel = x;
+                            success = this.useItem();
+                            this.sel = oldsel;
+                            break;
+
+                        }
+                    }
+                    if (!success)
+                        return;
                 }
             }
             wielding[a.typ] = !wielding[a.typ]; //This accounts not only for weapons and armor, but also for seen items (e.g. potions).
@@ -1045,6 +1062,7 @@ $(function(){
             if (a.use()){
                 this.items.splice(this.sel, 1);
             }
+            return true; //success. Note: Return false if the item is cursed and you are trying to unequip it.
         }
         this.dropItem = function(){
             var a=this.items[this.sel];
