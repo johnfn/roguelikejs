@@ -6,6 +6,7 @@ $(function(){
         lastTicks=0,
         context,
         vis=[],
+        waitTime=90,
         seen=[], 
         pickupMode=false,
         magicMode= false,
@@ -18,7 +19,7 @@ $(function(){
     $(document).keydown (
         function(e){
             var ticks = (new Date()).getTime()
-            if (ticks - lastTicks < 90) return;
+            if (ticks - lastTicks < waitTime) return;
             lastTicks = ticks;
 
             t = e.which;
@@ -504,6 +505,7 @@ $(function(){
      * Renders a minimap to screen. Awesome.
      */
     function minimap(){
+        /*
         var W = 20; //TODO Abstract
         for (var i=max(Character.y-20,0);i<min(Character.y+20, size);i++){
             for (var j=max(Character.x-20,0);j<min(Character.x+20, size);j++){
@@ -525,7 +527,7 @@ $(function(){
 
         if (keys[27]){
             showMap = false;
-        }
+        }*/
     }
 
     /*
@@ -643,7 +645,13 @@ $(function(){
         setInterval(gameLoop,90);
         writeStatus("Some jerk buried the Amulet of Tnarg in this dungeon. It is your mission to get it!");
 
-        writeBoard();
+        //Get an estimate on how long writeBoard takes.
+        var lTicks = (new Date()).getTime()
+        for (var i=0;i<10;i++)
+            writeBoard();
+        var time = ((new Date()).getTime() - lTicks)/10;
+        console.log(time);
+        waitTime = time;
         //function(forcecls, forcespec)
 
     }
@@ -708,7 +716,7 @@ $(function(){
             wTile(j,i,"55","55",vis?"ff":"bb",sz);
 
         if (type == "#")  
-            wTile(j,i,"66","66","66",sz, 25);
+            wTile(j,i,"66","66","66",sz, 10);
 
         if (type == "&")  
             wTile(j,i,"00","00","00",sz);
@@ -793,7 +801,7 @@ $(function(){
                 var bcs = { ".":"white", "&nbsp;":"black" }; 
                 if (!(t=vis[i][j])) if (seen[i+screenX][j+screenY]) text[i][j] = map[i+screenX][j+screenY]; else text[i][j] = "&nbsp;";
    
-                //function writeTileGeneric(i, j, sz, type, vis){
+               //function writeTileGeneric(i, j, sz, type, vis){
                 writeTileGeneric(i, j, 20, text[i][j], t);
                 
                 //if (s == ".") t.css("color",vis[i][j] ? "black" : "#cccccc");
