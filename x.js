@@ -12,7 +12,7 @@ $(function(){
         magicMode= false,
         cBuffer = 0,
         is=0, //TODO pretty sure I never use this.
-        actionkeys = [65, 87, 68, 83, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",rangeMode=false,whichTarget=0,showMap=true, shop, dungeonCache=[], wieldingBow = false;
+        actionkeys = [65, 87, 68, 88, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",rangeMode=false,whichTarget=0,showMap=true, shop, dungeonCache=[], wieldingBow = false;
 
     while (t++<=255) keys[t] = false;
 
@@ -38,9 +38,12 @@ $(function(){
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function setxy(a, b){a.x = b.x;a.y = b.y}
     function dodmg(a,b) {
-        b.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.DEF+a.STR); 
-        writeStatus(a.n + " hit" + (a.n[0]=="T"?"s":"") +  " for " + t + " damage.");
-        if (a.POI && rnd(0,10)==0) {effect("poison"); writeStatus("You have been poisoned!")}
+        b.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.DEF+(wieldingBow && a==Character ? a.DEX : a.STR)); 
+        writeStatus(a.n + " hit" + (a.n[0]=="Y"?"":"s") +  " for " + t + " damage.");
+        if (a.POI && rnd(0,10)==0) {effect("poison"); writeStatus("You have been poisoned!")} 
+        
+        //TODO you should be able to poison as well.
+        //Easy to implement; just give yourself the POI flag.
 
         if (b.HP < 0){ //FIXME and b is not Character
             writeStatus("Holy crap! "+b.n+" explodes in a huge explosion of blood! It's really gross!");
@@ -293,9 +296,9 @@ $(function(){
 
     function checkStatsChange(){
         writegenericlist(0,0);
-        writeks({"D":"efense","S":"trength","C":"onstitution"});
-        t = {68:"DEF",83:"STR",67:"INT"};
-        $("#1F1").html("Gain a stat: (D)efense (S)trength (I)ntelligence." );
+        writeks({"D":"exterity","S":"trength","C":"onstitution"});
+        t = {68:"DEX",83:"STR",67:"INT"};
+        $("#1F1").html("Gain a stat: (D)exterity (S)trength (I)ntelligence." );
         
   
         for (x in t) if (keys[x]) {Character[t[x]]++; writeStatus(--statpoints + " points left.");}
@@ -303,7 +306,6 @@ $(function(){
     }
 
     function enchantWeapon(lv){
-
         for (it in Inventory.items){ 
             t= Inventory.items[it];
             //TODO wtyp should just point to the item, so i don't have to search for it all the time...
@@ -418,7 +420,7 @@ $(function(){
         /*
          * This snippet is to find the next available target.
          */
-        if (keys[88]) {
+        if (keys[83]) {
             var di=1e6; //Infinity for all practical purposes
 
             var start = whichTarget;
@@ -497,21 +499,35 @@ $(function(){
     }
     function renderSidebar(){
         s="";for (x in st)s += x + " x " + st[x] + B;
-        $("#hlth").html(" $: " + Character.money +B+ "Level " + Character.LVL +" (" + Character.EXP + "/" + Character.NXT+")" +B+ "HP: " + Character.HP + "/" + Character.maxHP +B+"MP:" + Character.MP + "/5"+B+ " Damage: " + (Character.DMG + (t=Character.STR))+  "-" + (Character.DMX +t)+ B+  " Strength: " +t  +B+" Intelligence: " + Character.INT +B+ " Defense: " + Character.DEF +B+ " Dungeon Level:" + curlevel +B + s);
+        $("#hlth").html(
+                "Level " + Character.LVL +" (" + Character.EXP + "/" + Character.NXT+")" +B+
+                "Dungeon Level: " + curlevel +B + 
+                "HP: " + Character.HP + "/" + Character.maxHP +B+
+                "MP: " + Character.MP + "/5"+B+ 
+                "Damage: " + (Character.DMG + (t=wieldingBow ? Character.DEX : Character.STR))+  "-" + (Character.DMX +t)+ B+  
+                "Strength: " +t  +B+
+                "Intelligence: " + Character.INT +B+ 
+                "Dexterity: " + Character.DEX +B+ 
+                "Armor: " + Character.DEF +B+ 
+                "$: " + Character.money +B+ 
+                s);
     }
     /*
      * minimap()
      *
      * Renders a minimap to screen. Awesome.
+     *
+     * TODO: make this function not suck.
      */
     function minimap(){
         /*
         var W = 20; //TODO Abstract
         for (var i=max(Character.y-20,0);i<min(Character.y+20, size);i++){
             for (var j=max(Character.x-20,0);j<min(Character.x+20, size);j++){
-                writeTileGeneric(j-screenX+6*W, i-screenY+7*W, 2, map[j][i], seen[j][i], true);
+                writeTileGeneric(j-screenX, i-screenY, 2, map[j][i], seen[j][i], true);
             }
         }
+
         for (i in monsters){
             if (Character.revealm){
                 writeTileGeneric(monsters[i].x-screenX+6*W, monsters[i].y-screenY+7*W, 2, "j", seen[j][i]);
@@ -559,7 +575,7 @@ $(function(){
         oldPosition = {x : Character.x, y : Character.y } ; 
         var action = false;
 
-        Character.maxHP = 12*Character.LVL; 
+        Character.maxHP = 12 + 12*Character.LVL; 
 
          for (i in inventory) inventory[i].N() 
 
@@ -571,7 +587,7 @@ $(function(){
         if (statschange) {
             checkStatsChange(); 
         }else if (showInventory){
-            writeks({"Enter":" Use","ESC":" close Inventory","D":"rop"});
+            writeks({"WX":" Move", "Enter":" Use","ESC":" close Inventory","D":"rop"});
             $("#c").html("Inventory");
             Inventory.getKeys();
             Inventory.display();
@@ -580,7 +596,7 @@ $(function(){
             doMultiPickup();
         }else {
             checkLevelUp();
-            if (keys[88]) {
+            if (keys[83]) {
                 rangeMode=true;
                 whichTarget=0;
             }
@@ -650,7 +666,6 @@ $(function(){
         for (var i=0;i<10;i++)
             writeBoard();
         var time = ((new Date()).getTime() - lTicks)/10;
-        console.log(time);
         waitTime = time;
         //function(forcecls, forcespec)
 
@@ -674,8 +689,9 @@ $(function(){
             context.fillRect(x+Math.random()*(W-3),y+Math.random()*(W-3),3,3);
         }*//*
     } */
-    function wTile(x, y, r, g, b, sz, h){ 
-        if (!h) h=0;
+    function wTile(x, y, r, g, b, sz, h, txt){ 
+        
+        if (h==undefined) h=2;
         var tilesWide = 16;
         var tilesHigh = 16;
 
@@ -706,6 +722,17 @@ $(function(){
         // Fill the path
         context.fill();
         context.closePath();
+
+        if (txt) { 
+            context.font = "15px arial";
+            context.fillStyle = 'white';
+            context.strokeStyle = 'white'; 
+            context.fillText(txt,sx,sy);
+            context.strokeText(txt, sx, sy);
+        }
+    }
+    function isNumber(n) {
+        return !isNaN(parseFloat(n)) && isFinite(n);
     }
     function writeTileGeneric(i, j, sz, type, vis, mini){
 
@@ -713,10 +740,10 @@ $(function(){
             wTile(j,i,"55",vis?"ff":"bb","55",sz);
 
         if (type == "~")  
-            wTile(j,i,"55","55",vis?"ff":"bb",sz);
+            wTile(j,i,"55","55",vis?"ff":"bb",sz, 0);
 
         if (type == "#")  
-            wTile(j,i,"66","66","66",sz, 10);
+            wTile(j,i,"66","66","66",sz, 15);
 
         if (type == "&")  
             wTile(j,i,"00","00","00",sz);
@@ -725,25 +752,30 @@ $(function(){
             wTile(j,i,"00","00","00",sz);
 
         if (type == "c" || type == "j" || type == "g" || type == "r") { 
-            wTile(j,i,"ff","55","55",sz);
-            /*if (sz>2){
-                context.font = "font-size:60px";
-                context.fillStyle = "#ffffff";
-                context.fillText("goblin", j*sz, i*sz+sz/2);
-            } */
+            wTile(j,i,"ff","55","55",sz, 5, "goblin");
+
+        }
+
+        if (type=="@" )
+            wTile(j,i,"ff","ff","ff",sz, 5);
+
+        if (isNumber(type)) {
+            t = (~~(Character.HP*16/Character.maxHP)).toString(16);
+            t=t+t;
+            wTile(j,i,t,t,t,sz, 5);
         }
 
         if (type == "U")
-            wTile(j,i,"ff","55","ff",sz);
+            wTile(j,i,"ff","55","ff",sz); //TODO namerender
 
         if (type == ">" || type == "<")
             wTile(j,i,"66","66","33",sz);
 
         if (type == "!" || type == "?" || type == "[")
-            wTile(j,i,"dd","dd","55",sz, 3);
+            wTile(j,i,"dd","dd","55",sz, 3, "item"); //TODO specificz
 
         if (rangeMode && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
-            wTile(j, i, "33", "33", "33", sz);
+            wTile(j, i, "33", "33", "33", sz, 5, "goblin");
 
         if (mini && !vis)
             wTile(j,i,"00","00","00",sz);
@@ -792,7 +824,9 @@ $(function(){
         }
         
         context = canv[cBuffer].getContext('2d');
-        context.clearRect(0,0,500,500);
+
+        context.fillStyle = "#000000"
+        context.fillRect(0,0,1000,1000);
 
         
         for (var i=0;i<sz;i++){
@@ -874,8 +908,10 @@ $(function(){
      * Moves the character and consults a dictionary lookup to run special actions on keypress.
      */
     function getKeys(){
-        Character.x += max(-1, min(1, -keys[69] - keys[81] +keys[90] + keys[67] + keys[83] - keys[87]));
-        Character.y += max(-1, min(1, keys[68] - keys[65] - keys[81] + keys[69] - keys[90] + keys[67]));
+        //87-81-65-90-88-67-68-69
+        console.log(keys[88]);
+        Character.x += max(-1, min(1, -keys[68] - keys[87] +keys[65] + keys[88] + keys[90] - keys[69]));
+        Character.y += max(-1, min(1, keys[67] - keys[81] - keys[87] + keys[68] - keys[65] + keys[88]));
         for (i in m) if (keys[i]) m[i]();
 
         var change = false;
@@ -899,7 +935,7 @@ $(function(){
         if(t[0]=="p")ns.s="HP", ns.rel=0, ns.v=-1;
         if(t[0]=="r")ns.s="HP", ns.rel=0;
         t[0]=="i"? ns.s="INT":0;
-        t[0]=="d"? ns.s="DEF":0;
+        t[0]=="d"? ns.s="DEX":0;
 
         Character[ns.s] += ns.v; //First use for relative buffs (like regen) and ONLY use for nonrelative buffs (+1 STR etc)
         queue.push(ns);
@@ -911,7 +947,7 @@ $(function(){
                              "(" : ["bow", "longbow"] 
     };
     var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["regeneration", "poison", "strength", "intelligence","defense"],
+                             "!" : ["regeneration", "poison", "strength", "intelligence","dexterity"],
                              "?" : ["teleport", "money", "healing", "stabbing self", "experience", "worthlessness", "curse", "enchant I", "enchant II"]
     };
     var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"};  //Unique
@@ -936,9 +972,9 @@ $(function(){
         this.spec = {}; 
         this.N=function(known){
             if(this.cls=="?"){
-                this.n = "A scroll of " + (this.typ in wielding || known ? this.typ : "mystery");
+                this.n = "Scroll of " + (this.typ in wielding || known ? this.typ : "mystery");
             } else { 
-                this.n= this.cls=="!"? "A potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
+                this.n= this.cls=="!"? "Potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
             }
         } 
         this.n = "";
@@ -960,8 +996,8 @@ $(function(){
                         stacks = false;
                         d = relem(typedescriptions[t]); 
                         typ="w";
-                        spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 3*curlevel)) + rnd(1,3+curlevel*2);
-                        n = relem(descriptors) + " " + d + " of " + relem(finaldescriptors["["]); 
+                        spec["DMX"] = (spec["DMG"]= rnd(1*curlevel, 2*curlevel)) + rnd(1,3+curlevel*2); //Bows are weaker than swords for obvious reasons
+                        n ="A "+ relem(descriptors) + " " + d + " of " + relem(finaldescriptors["["]); 
                     }
                     if (t == "|"){ //Bolts/arrows for bow.
                         stacks = true;
@@ -984,13 +1020,13 @@ $(function(){
                             spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
                             typ =typedescriptions[t][d2];
                         }
-                        n=  relem(descriptors)  + " " +  d +  " of "+relem(finaldescriptors[t]);
+                        n= "A "+ relem(descriptors)  + " " +  d +  " of "+relem(finaldescriptors[t]) + ( d2<8? " (" + spec["DMG"] + "-" + spec["DMX"] +")" : "("+spec["DEF"]+")");
                     }
                     if (t== "!" || t == "?"){
                         typ = relem(finaldescriptors[t]);
                     }
                 }
-                n = forcename || "A " + n;
+                n = forcename || n;
                 cls = forcecls || cls;
                 typ = forcetyp || typ;
 
@@ -1076,6 +1112,11 @@ $(function(){
          ]
     var MNS=ms.length;
 
+    /*
+     * Note! Never make a unique monster's name start with Y.
+     *
+     * Don't ask why.
+     */
     ums = ["U|Andrius|1|2|4|30|1|6",
            "U|Dmitri|1|2|5|24|1|6"
         ];
@@ -1148,6 +1189,7 @@ $(function(){
         NXT : 10,
         INT : 2,
         STR : 2,
+        DEX : 2,
         DEF : 1,
         LVL : 1,
         revealm : false, //Reveal monsters spell.
@@ -1255,7 +1297,7 @@ $(function(){
             }
         }
         this.getKeys = function(){
-            this.sel += keys[83] - keys[87]; 
+            this.sel += keys[88] - keys[87]; 
             if (keys[13]) this.useItem(); 
             if (keys[68]) this.dropItem();
 
