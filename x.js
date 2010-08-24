@@ -1,17 +1,18 @@
 //Typekit.load();
 $(function(){
 
-
     var keys=[],
         lastTicks=0,
+        relText=[],
         context,
+        text=[],
         vis=[],
+        colorsdict = [],
         waitTime=90,
         seen=[], 
         pickupMode=false,
         magicMode= false,
         cBuffer = 0,
-        is=0, //TODO pretty sure I never use this.
         actionkeys = [65, 87, 68, 88, 81,69,90,67,188, 190], sz = 16, map = [], REGENRATE=25, monsters = [], items = [], tr, inventory = [], showInventory = resting = false, moves = 0, statschange = false , statpoints = 0, screenX = screenY = curlevel= 0, size, t=0, pc,B="<br/>",wielding={}, oldPosition, queue=[],usd={}, st="",rangeMode=false,whichTarget=0,showMap=true, shop, dungeonCache=[], wieldingBow = false;
 
     while (t++<=255) keys[t] = false;
@@ -19,8 +20,8 @@ $(function(){
     $(document).keydown (
         function(e){
             var ticks = (new Date()).getTime()
-            if (ticks - lastTicks < waitTime) return;
-            lastTicks = ticks;
+            //if (ticks - lastTicks < waitTime) return;
+            //lastTicks = ticks;
 
             t = e.which;
             console.log(t);
@@ -38,6 +39,7 @@ $(function(){
     function intersect(a, b){ return a.x == b.x && a.y == b.y }
     function setxy(a, b){a.x = b.x;a.y = b.y}
     function dodmg(a,b) {
+        b.follow=1;
         b.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.DEF+(wieldingBow && a==Character ? a.DEX : a.STR)); 
         writeStatus(a.n + " hit" + (a.n[0]=="Y"?"":"s") +  " for " + t + " damage.");
         if (a.POI && rnd(0,10)==0) {effect("poison"); writeStatus("You have been poisoned!")} 
@@ -221,7 +223,7 @@ $(function(){
          *
          * If I'm running out of space (unlikely...) then TODO i can make this into a bar delimited string like normal.
          */
-        var uniqueItems = [{name: "The Greatsword (unique)", typ:"w", cls:"[", spec: {"STR": 5, "DMG":10, "DMX":15}}]; 
+        var uniqueItems = [{name: "The Greatsword", typ:"w", cls:"[", spec: {"STR": 5, "DMG":10, "DMX":15}}]; 
         var uni = new Item(t.x+1, t.y+1, uniqueItems[0].cls, uniqueItems[0].spec, uniqueItems[0].name, uniqueItems[0].typ);
         items.push(uni);
 
@@ -243,11 +245,16 @@ $(function(){
      * Writes the keys that you can press to screen.
      */
 
-    function writeks(d){
+    function writeks(d, l){
         var s="";
         for (k in d)
             s += " <b>"+k+"</b>:" + d[k]+ " |";
+            //s += " "+k+":" + d[k]+ " |";
+
+        //context.fillStyle = 'white'; //TODO
+        //context.fillText(s,20,450+ (l||0));
         $("#ks").html(s+B);
+
     }
     /*
      * checkLevelUp()
@@ -310,12 +317,16 @@ $(function(){
             t= Inventory.items[it];
             //TODO wtyp should just point to the item, so i don't have to search for it all the time...
             if (t.equipped && t.wtyp=="["){
-                //TODO for bows, should enhance DEX instead.
-                //TODO weapons should show their enchancements.
                 !t.spec["STR"] ? t.spec["STR"]=0:0;
-                if (t.spec["STR"] == lv-1){
-                    t.spec["STR"] = lv;
-                    Character.STR++; //Now this is a beautiful hack. The c.str is removed when the item is not wielded, so it all works out...
+                !t.spec["DEX"] ? t.spec["DEX"]=0:0;
+                if ((t.spec["STR"] == lv-1 && !wieldingBow) || (t.spec["DEX"] && wieldingBow) ){
+                    if (wieldingBow){
+                        t.spec["DEX"] = lv;
+                        Character.DEX++; 
+                    } else { 
+                        t.spec["STR"] = lv;
+                        Character.STR++; //Now this is a beautiful hack. The c.str is removed when the item is not wielded, so it all works out...
+                    }
 
                     writeStatus("The weapon glows light blue!");
                     return;
@@ -354,8 +365,6 @@ $(function(){
             if (!t.rel) Character[t.s]+=t.v;
         }
     }
-
-    //TODO make dodmg accept a number to override amount of damage dealt - or something like that...
 
     //TODO If i implement a WIZARD CLASS, use this. Otherwise... meh
     // {n:"Magic dart", /*rng: 5,*/ effect:function(you, them){ dodmg(you, them); },cost:1  },
@@ -403,6 +412,7 @@ $(function(){
                         keys[x-0+49] = false;
                         
                         magicMode = false;
+                        writeStatus("You cast the spell successfully!");
                         return true; //action has been taken
                     }
                 }
@@ -416,7 +426,7 @@ $(function(){
 
 
     function rangeAction(){
-        writeks({"X":" Cycle through monsters","Enter":"Fire", "ESC" : " Cancel"});
+        writeks({"S":" Cycle through monsters","Enter":"Fire", "ESC" : " Cancel"});
         /*
          * This snippet is to find the next available target.
          */
@@ -427,13 +437,14 @@ $(function(){
             var found=false;
             //Find the next visible monster
             do { 
+                whichTarget++;
+                whichTarget %= monsters.length;
+
                 var m = monsters[whichTarget];
                 if (bounded(m.x-screenX) && bounded(m.y-screenY) && vis[m.x-screenX][m.y-screenY]) {
                     found = true;
                     break;
                 }
-                whichTarget++;
-                whichTarget %= monsters.length;
             } while (whichTarget != start)
             
             if (!found){
@@ -444,7 +455,7 @@ $(function(){
 
         if (keys[27]) {
             rangeMode=false;
-            whichTarget=-1;
+            whichTarget=0;
         } 
 
         /* 
@@ -458,7 +469,7 @@ $(function(){
                     t= Inventory.items[it];
                     if (t.equipped && t.cls=="|" && t.count-->0){
                         if (dodmg(Character, monsters[whichTarget])){
-                            whichTarget = -1;
+                            whichTarget = 0;
                             rangeMode = false;
                         }
                         return true; //action has been taken
@@ -481,7 +492,9 @@ $(function(){
         statusEffects(); 
 
         moves++;
-        Character.HP += resting + (!moves%REGENRATE && Character.HP != Character.maxHP)
+        if (!moves%REGENRATE && Character.HP != Character.maxHP) debugger;
+
+        Character.HP += resting + (moves%REGENRATE==0 && Character.HP != Character.maxHP);
         if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
         for (i in monsters) monsters[i].update(oldPosition);
         
@@ -517,14 +530,12 @@ $(function(){
      *
      * Renders a minimap to screen. Awesome.
      *
-     * TODO: make this function not suck.
      */
     function minimap(){
-        /*
         var W = 20; //TODO Abstract
         for (var i=max(Character.y-20,0);i<min(Character.y+20, size);i++){
             for (var j=max(Character.x-20,0);j<min(Character.x+20, size);j++){
-                writeTileGeneric(j-screenX, i-screenY, 2, map[j][i], seen[j][i], true);
+                writeTileGeneric(j-screenX+220, i-screenY+300, 2, map[j][i], seen[j][i], true);
             }
         }
 
@@ -543,13 +554,14 @@ $(function(){
 
         if (keys[27]){
             showMap = false;
-        }*/
+        }
     }
 
     /*
      * doMultiPickup()
      */
     function doMultiPickup(){
+        console.log("yes");
         if (keys[65]){
             while(pickupItem(0));
             pickupMode=false;
@@ -564,6 +576,14 @@ $(function(){
         }
 
     }
+    function renderList(title, contents){
+        $("#board > span").html("").css({"background-color":"","color":""});
+        context.fillStyle = "#FFFFFF"
+        context.fillRect(50,50,300,contents.length * 40);
+        for (x in contents){
+            $("#"+x+"F0").html(contents[x]);
+        }
+    }
     /*
      * gameLoop()
      *
@@ -575,7 +595,7 @@ $(function(){
         oldPosition = {x : Character.x, y : Character.y } ; 
         var action = false;
 
-        Character.maxHP = 12 + 12*Character.LVL; 
+        Character.maxHP = 3 + Character.STR*4 + 12*Character.LVL; 
 
          for (i in inventory) inventory[i].N() 
 
@@ -587,18 +607,25 @@ $(function(){
         if (statschange) {
             checkStatsChange(); 
         }else if (showInventory){
+            //top: 100px; left:300px; width:300px; height:400px;
             writeks({"WX":" Move", "Enter":" Use","ESC":" close Inventory","D":"rop"});
             $("#c").html("Inventory");
             Inventory.getKeys();
             Inventory.display();
             if (!showInventory) ssXY();
         }else if (pickupMode){
+            context.fillStyle = "#FFFFFF"
+            context.fillRect(50,50,300,400);
             doMultiPickup();
         }else {
+
+            $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
+
             checkLevelUp();
-            if (keys[83]) {
+            if (keys[83] && !rangeMode) {
                 rangeMode=true;
-                whichTarget=0;
+                rangeAction();
+                //whichTarget=0;
             }
 
             if (keys[77]) magicMode = true;
@@ -606,23 +633,27 @@ $(function(){
             if (Character.HP<0) {writeStatus("You have died. :("); end(0);} //TODO would you like to continue anyway? mk.
 
             $("#c").html("Rogue");
-            writeks({"WASD":" Move", "QEZC":" Diag", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack",
-                    "<br>>":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" });
 
             action = (rangeMode && rangeAction()) || (magicMode && magicAction()) || (!magicMode && !rangeMode && getKeys());
+
             if (action || resting) { 
                 resting = !(action || Character.HP == Character.maxHP) 
                 takeTurn();
-
-                if (!tr) writeBoard(); 
             }
 
+            if ( ( !tr && action) ) writeBoard(); 
+
+            writeks({"QWE AD ZXC":" Move", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack"});
+            writeks({">":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" }, 30);
+            //context.fillStyle = 'white';
+            //context.fillText("miniRogue",50,50);
         }
+        if (keys[27]) writeBoard();  //27 is the ultimate "change stuff" key, anyway
         t=255;
         while(t--) keys[t]=false;
 
         if (showMap){
-            minimap();
+            //minimap();
         }
     }
 
@@ -640,7 +671,10 @@ $(function(){
         }
     }
 
+    
     function initialize(){
+        initColors(true);
+        initColors(false);
 
         context = canv[cBuffer].getContext('2d');
         context.clearRect(0,0,500,500);
@@ -648,6 +682,7 @@ $(function(){
         Inventory = new Inven();
         Inventory.addItem(new Item(0,0,"("));
         Inventory.addItem(new Item(0,0,"|"));
+
 
         generateLevel(1,0);
         ssXY();
@@ -662,11 +697,14 @@ $(function(){
         writeStatus("Some jerk buried the Amulet of Tnarg in this dungeon. It is your mission to get it!");
 
         //Get an estimate on how long writeBoard takes.
+        /*
+         * TODO: See if I even need this nemoar.
         var lTicks = (new Date()).getTime()
         for (var i=0;i<10;i++)
             writeBoard();
-        var time = ((new Date()).getTime() - lTicks)/10;
-        waitTime = time;
+        var time = ((new Date()).getTime() - lTicks)/10; */
+        waitTime = 50; //time;
+        writeBoard();
         //function(forcecls, forcespec)
 
     }
@@ -691,7 +729,6 @@ $(function(){
     } */
     function wTile(x, y, r, g, b, sz, h, txt){ 
         
-        if (h==undefined) h=2;
         var tilesWide = 16;
         var tilesHigh = 16;
 
@@ -726,66 +763,64 @@ $(function(){
         if (txt) { 
             context.font = "15px arial";
             context.fillStyle = 'white';
-            context.strokeStyle = 'white'; 
             context.fillText(txt,sx,sy);
-            context.strokeText(txt, sx, sy);
         }
+        /* experimental "speckling" of tiles.
+         *
+         * for (var i=0;i<10;i++){
+            var P=40+~~(Math.random()*50);
+            var v = '#' + (r?d:P) + (g?d:P) + (b?d:P);
+            context.fillStyle = v;
+            context.fillRect(x+Math.random()*(W-3),y+Math.random()*(W-3),3,3);
+        } */
     }
+    function wTileMini(x,y,r,g,b,sz){ //Xpos, Ypos, (RGB), size
+        context.fillStyle = '#' + r + g + b; //(r?d:"55") + (g?d:"55") + (b?d:"55");
+        context.fillRect(x*sz,y*sz,sz,sz);
+    }
+
     function isNumber(n) {
-        return !isNaN(parseFloat(n)) && isFinite(n);
+        return !isNaN(n-0); //!isNaN(parseFloat(n)) && isFinite(n);
+    }
+
+    function initColors(vis){
+       colorsdict[vis] ={  "." : ["55", vis?"ff":"bb", "55"],
+                           "~" : ["55", "55", vis?"ff":"bb", 1],
+                           "#" : ["66", "66", "66", 15],
+                           "&" : ["00", "00", "00"],
+                      "&nbsp;" : ["00", "00", "00"],
+                           "M" : ["ff", "55", "55", 5],  //TODO: in the future, could just scan monster color straight off monster object.
+                           "U" : ["ff", "55", "ff"],
+                           ">" : ["66", "66", "33", 5],
+                        "&lt;" : ["66", "66", "33", 5], //TODO Make up/down the right keys =) or v^
+                           "I" : ["dd", "dd", "55", 4]
+        };
     }
     function writeTileGeneric(i, j, sz, type, vis, mini){
+        vis = vis ? true : false;
+        f = mini ? wTileMini : wTile;
+        if ("cjgr".indexOf(type) != -1) type = "M";
+        if ("!?[$(|".indexOf(type) != -1) type = "I";
 
-        if (type == ".")  
-            wTile(j,i,"55",vis?"ff":"bb","55",sz);
-
-        if (type == "~")  
-            wTile(j,i,"55","55",vis?"ff":"bb",sz, 0);
-
-        if (type == "#")  
-            wTile(j,i,"66","66","66",sz, 15);
-
-        if (type == "&")  
-            wTile(j,i,"00","00","00",sz);
-        
-        if (type == "&nbsp;")
-            wTile(j,i,"00","00","00",sz);
-
-        if (type == "c" || type == "j" || type == "g" || type == "r") { 
-            wTile(j,i,"ff","55","55",sz, 5, "goblin");
-
-        }
-
-        if (type=="@" )
-            wTile(j,i,"ff","ff","ff",sz, 5);
-
-        if (isNumber(type)) {
+        if (type=="@" || isNumber(type)) { 
             t = (~~(Character.HP*16/Character.maxHP)).toString(16);
+            if (Character.HP == Character.maxHP) t = "FF";
             t=t+t;
-            wTile(j,i,t,t,t,sz, 5);
+            f(j,i,t,t,t,sz, 5);
+        } else { 
+            f(j, i, colorsdict[vis][type][0], colorsdict[vis][type][1], colorsdict[vis][type][2], sz, colorsdict[vis][type][3] || 3, vis ? relText[i][j] : "");
         }
-
-        if (type == "U")
-            wTile(j,i,"ff","55","ff",sz); //TODO namerender
-
-        if (type == ">" || type == "<")
-            wTile(j,i,"66","66","33",sz);
-
-        if (type == "!" || type == "?" || type == "[")
-            wTile(j,i,"dd","dd","55",sz, 3, "item"); //TODO specificz
-
         if (rangeMode && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
-            wTile(j, i, "33", "33", "33", sz, 5, "goblin");
+            f(j, i, "33", "33", "33", sz, 5, relText[i][j]);
 
         if (mini && !vis)
-            wTile(j,i,"00","00","00",sz);
+            f(j,i,"00","00","00",sz);
     }
 
     function writeBoard(){
 
-        var text = [];
+        text = [];
         vis = [];
-        var html = "";
 
         vis=[];a=b=0;while(a++<sz){vis.push([]);while(b++<sz)vis[a-1].push(0);b=0}
 
@@ -796,10 +831,27 @@ $(function(){
             for (var j=0;j<sz;j++) text[i].push(map[i+screenX][j+screenY]);
         }  
 
-        //TODO abstract out bounded into a function on the object.. or do one better and dont put it on the object...
-        for (i in items) if(bounded(items[i].x - screenX) && bounded(items[i].y - screenY)) text[items[i].x - screenX][items[i].y - screenY] = items[i].cls;
+        relText=[];a=b=0;while(a++<size){relText.push([]);while(b++<size)relText[a-1].push("");b=0}
 
-        for (i in monsters) if(bounded(monsters[i].x - screenX) && bounded(monsters[i].y - screenY)) text[monsters[i].x - screenX][monsters[i].y - screenY] = monsters[i].rep;
+        //TODO abstract out bounded into a function on the object.. or do one better and dont put it on the object...
+        //
+        //TODO There are a lot of optimizations to be made here. Also, could extract this into a loop through itemmonsters and save even more, if necessary.
+        for (i in items) 
+            if(bounded(items[i].x - screenX) && bounded(items[i].y - screenY)) {
+                text[items[i].x - screenX][items[i].y - screenY] = items[i].cls;
+                items[i].N();
+                relText[items[i].x - screenX][items[i].y - screenY] = items[i].n;
+            }
+
+        for (i in monsters) 
+            if(bounded(monsters[i].x - screenX) && bounded(monsters[i].y - screenY)) {
+                text[monsters[i].x - screenX][monsters[i].y - screenY] = monsters[i].rep;
+                var s = monsters[i].n;
+                if (s[0]=='T'&&s[1]=='h'&&s[2]=='e'){
+                    s=s.substring(4);
+                }
+                relText[monsters[i].x - screenX][monsters[i].y - screenY] = s;
+            }
 
         text[Character.x - screenX][Character.y - screenY] = Character.rep();
 
@@ -847,9 +899,6 @@ $(function(){
         cBuffer = 1- cBuffer;
 
         //style="background-color:black;color:red" 
-        //for (i in text) html += text[i].join("") + B;
-
-        //$("#board").html(html);
     } 
     function pickupItem(which, silence){
         var underfoot = [];
@@ -871,11 +920,12 @@ $(function(){
         if (silence) return false;
         if (underfoot.length > 1){
             writeStatus("There are many items here. Press a number for a specific item, or A for all.");
-            pickupMode=true;
-            $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
+            var list = [];
             for (i in underfoot){
-                $("#"+i+"F0").html(i + "-" + items[underfoot[i]].n);
+                list.push(i + "-" + items[underfoot[i]].n);
             }
+            renderList("Pick up what?", list);
+            pickupMode=true;
             return false;
         }
         writeStatus("You swing your arms hopelessly at the ground, trying to find something.");
@@ -909,7 +959,6 @@ $(function(){
      */
     function getKeys(){
         //87-81-65-90-88-67-68-69
-        console.log(keys[88]);
         Character.x += max(-1, min(1, -keys[68] - keys[87] +keys[65] + keys[88] + keys[90] - keys[69]));
         Character.y += max(-1, min(1, keys[67] - keys[81] - keys[87] + keys[68] - keys[65] + keys[88]));
         for (i in m) if (keys[i]) m[i]();
@@ -941,12 +990,20 @@ $(function(){
         queue.push(ns);
     }
 
-    var descriptors = ["cool", "decent", "lame", "noobesque"];
-    var typedescriptions = { "[" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "pokey thing", "pair of boots", "helmet", "legplates", "chestplate" ],
-                             "!" : ["vial", "potion", "tonic"], //TODO, I never use these
+    var descriptors = [ [30,  "", {}],
+                        [60,  " decent",  {"DMG":1, "DMX":2}],
+                        [90,  " ancient", {"DMG":2, "DMX":4}],
+                        [100, " glowing", {"STR":2}]
+                      ] ; 
+                         
+    var finalWDescs = [ [50,  "", {}],
+                        [100, " of intelligence", {"INT":1}]
+                      ];
+
+    var typedescriptions = { "[" : ["sword", "mace", "dirk", "dagger", "longsword", "axe", "stabber", "pokey thing", "pair of boots", "helmet", "pair of legplates", "chestplate" ],
                              "(" : ["bow", "longbow"] 
     };
-    var finaldescriptors = { "[" : ["Truth", "bone","cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
+    var finaldescriptors = {// "[" : ["Truth", "bone", "cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
                              "!" : ["regeneration", "poison", "strength", "intelligence","dexterity"],
                              "?" : ["teleport", "money", "healing", "stabbing self", "experience", "worthlessness", "curse", "enchant I", "enchant II"]
     };
@@ -977,10 +1034,33 @@ $(function(){
                 this.n= this.cls=="!"? "Potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
             }
         } 
+        this.getTag = function(){
+            if(this.typ == "Arrows" || this.cls == "$") return "";
+            var tag="(";
+            if (this.typ == "w"){
+                tag += this.spec["DMG"]+"-"+this.spec["DMX"] + ",";
+            }
+            for (s in this.spec){
+                if (s != "DMG" && s != "DMX" && this.spec[s] > 0)
+                    tag += " +"+this.spec[s] +" " + s + ",";
+            }
+            return tag.substring(0,tag.length-1) + ")"; //trim last comma
+        }
         this.n = "";
         this.typ="";
         this.d="";
         this.wtyp="";
+        this.getDescriptor = function(desc){
+            var r = ~~(Math.random()*100); //TODO: Let level modify this.
+            for (x in desc){
+                if (desc[x][0] > r){ //prob
+                    for (s in desc[x][2]){ //specs
+                        this.spec[s] = (this.spec[s] ? this.spec[s]:0) + desc[x][2][s];
+                    }
+                    return desc[x][1];
+                }
+            }
+        }
         this.init = function(forcecls, forcespec, forcename, forcetyp) {  //TODO don't have to pass these in?
             with(this){     
                 t = cls = forcecls || relem(["!", "(","|", "[", "$", "?"]);
@@ -990,6 +1070,7 @@ $(function(){
                 } else { 
                     if (t == "$"){
                         spec["money"] = -rnd(curlevel, (1+curlevel)*7);
+                        n="$";
                     }
 
                     if (t == "("){
@@ -997,7 +1078,7 @@ $(function(){
                         d = relem(typedescriptions[t]); 
                         typ="w";
                         spec["DMX"] = (spec["DMG"]= rnd(1*curlevel, 2*curlevel)) + rnd(1,3+curlevel*2); //Bows are weaker than swords for obvious reasons
-                        n ="A "+ relem(descriptors) + " " + d + " of " + relem(finaldescriptors["["]); 
+                        n ="A"+  getDescriptor(descriptors) + " " + d + getDescriptor(finalWDescs);
                     }
                     if (t == "|"){ //Bolts/arrows for bow.
                         stacks = true;
@@ -1020,7 +1101,7 @@ $(function(){
                             spec["DEF"]=rsp(~~((d2-7)/2),~~(curlevel/4))+1;
                             typ =typedescriptions[t][d2];
                         }
-                        n= "A "+ relem(descriptors)  + " " +  d +  " of "+relem(finaldescriptors[t]) + ( d2<8? " (" + spec["DMG"] + "-" + spec["DMX"] +")" : "("+spec["DEF"]+")");
+                        n= "A"+ getDescriptor(descriptors)  + " " +  d +  getDescriptor(finalWDescs);
                     }
                     if (t== "!" || t == "?"){
                         typ = relem(finaldescriptors[t]);
@@ -1029,6 +1110,7 @@ $(function(){
                 n = forcename || n;
                 cls = forcecls || cls;
                 typ = forcetyp || typ;
+                n += getTag();
 
                 //wtyp = cls;
                 //if (cls=="(") wtyp = "[";
@@ -1145,7 +1227,6 @@ $(function(){
         this.update = function(oldP) {
             if (intersect(this, Character)) {
                 dodmg(Character,this);
-                this.follow=1;
                 if (this.HP > 0 || this.AGL > Character.AGL) dodmg(this,Character);
 
                 setxy(Character, oldP);
@@ -1249,7 +1330,6 @@ $(function(){
                 //about to equip
                 if (wielding[a.typ]) {  //TODO. I should make a flag that is individual to each wielded item...
 
-                    console.log("ASD!!!!!!!!!!!!!!!!!!1");
                     //Unequip any other equipped item of that type
                     var success = false;
                     for (x in this.items){
@@ -1286,15 +1366,16 @@ $(function(){
             this.items.splice(this.sel, 1);
         } 
         this.display = function(known){ //known -> force all objects to be known when looking (e.g. for shops)
-            $("#board > span").html("").css({"background-color":"","color":""});
+            var list = [];
             for (i in this.items){
                 var c = this.items[i];
                 var desc = "";
                 if (this.sel==i) desc += "*"; else desc+= c.equipped ? "+" : "-"; 
                 c.N(known);
                 desc += c.count + "x " + c.n + (c.equipped ? "[equipped]" : ""); 
-               $("#"+i+"F0").html(desc);
+                list.push(desc);
             }
+            renderList("Inventory", list);
         }
         this.getKeys = function(){
             this.sel += keys[88] - keys[87]; 
