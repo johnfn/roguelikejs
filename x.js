@@ -824,7 +824,7 @@ $(function(){
 
         if (type=="@" || isNumber(type)) { 
             t = (~~(Character.HP*16/Character.maxHP)).toString(16);
-            if (type=="10") t = "F";
+            if (t=="10") t = "f";
             t=t+t;
             f(j,i,t,t,t,sz, 5);
         } else { 
@@ -856,12 +856,14 @@ $(function(){
         //TODO abstract out bounded into a function on the object.. or do one better and dont put it on the object...
         //
         //TODO There are a lot of optimizations to be made here. Also, could extract this into a loop through itemmonsters and save even more, if necessary.
-        for (i in items) 
-            if(bounded(items[i].x - screenX) && bounded(items[i].y - screenY)) {
-                text[items[i].x - screenX][items[i].y - screenY] = items[i].cls;
+        for (i in items) {
+            var tx = items[i].x - screenX, ty = items[i].y - screenY;
+            if(bounded(tx) && bounded(ty)) {
+                text[tx][ty] = items[i].cls;
                 items[i].N();
-                relText[items[i].x - screenX][items[i].y - screenY] = items[i].n;
+                relText[tx][ty] = (relText[tx][ty] == "") ?items[i].n : "Many items.";
             }
+        }
 
         for (i in monsters) 
             if(bounded(monsters[i].x - screenX) && bounded(monsters[i].y - screenY)) {
