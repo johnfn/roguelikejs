@@ -1,26 +1,30 @@
 <script src=http://use.typekit.com/gzj6zpb.js></script> 
 <script src=jquery.js></script><script src=x.js></script>
 <style type="text/css">
-    .L1{ width:200px; height:400px; float:left;}						
-    .L2{ width:65%; float:left; height:400px; }						
-    .L3{ width:400px; position:absolute; top: 100px; left:250px; width:300px; height:400px;  } /* Inventory*/
-    .head{ width:100%; height:100px;}						
-    canvas { border: 2px solid #000; position:absolute; top:40px;left:200px; 
-    visibility: hidden; }
-
+html{background:#090909;color:#ccc;}
+#l{width:900px;margin:0 auto;}
+#s{width:190px;margin-left:10px;float:right}
+#s span{font-size:.8125em;color:#666;text-transform:uppercase;}
+.L2{width:700px;float:left;height:500px;position:relative}
+#board{ width:500px;position:absolute;top:100px;left:100px;background:rgba(0,0,0,.85);padding:1em;} /* Inventory*/
+    h1{text-shadow: #444 1px 1px 0px, #888 2px 2px 0px, #444 3px 3px 0px;font: 4em 'Helvetica Neue', sans-serif;letter-spacing: -5px;color:#c99}
+	h1 #c{color:#ccc}
+    canvas { position:absolute;top:0;left:0;visibility: hidden;}
+#status{clear:both;}
 </style>
 
 
-<div class="a">
-<h1 class="head"><span style=color:red>mini</span><span id="c">Rogue</span></h1>
-<div class="L1" class="a" id = "hlth"> </div>
-<div class="L2"><canvas style="font-family: monospace" class="a" id="canvas0" width=700  height="500"> </canvas>
-    <canvas class="a" id="canvas1" width=700 height="500"> </canvas> </div>
-<div class="L3" id="board"> </div>
-
-<span style=color:red><b>Keys:</b></span><br/>
-<div id="ks"></div><br/>
-<div id="status"><br/>><br/>><br/>><br/></div>
-<br />Debugging info - please send this back to me when you're done!
-<div id="dbg"></div> <!--TODO: DESTROY-->
+<div id="l">
+<h1 class="head">mini<span id="c">Rogue</span></h1>
+<div id="s">
+	<div id="hlth"></div>
+	<br/><span style=color:red><b>Keys:</b></span><br/>
+	<div id="ks"></div>
+</div>
+<div class="L2">
+	<canvas id="canvas0" width="700" height="500"></canvas>
+	<canvas id="canvas1" width="700" height="500"></canvas>
+	<div id="board"></div>
+</div>
+<div id="status"><br/><br/><br/><br/></div>
 </div>
