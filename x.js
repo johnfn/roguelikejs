@@ -11,6 +11,7 @@ $(function(){
         colorsdict = [],
         waitTime=90,
         seen=[], 
+        deadMode=false,
         pickupMode=false,
         magicMode= false,
         cBuffer = 0,
@@ -25,6 +26,7 @@ $(function(){
             //lastTicks = ticks;
 
             t = e.which;
+            console.log(t);
             //console.log(t);
             keys[t]=true;
             gameLoop();
@@ -49,7 +51,7 @@ $(function(){
         //Easy to implement; just give yourself the POI flag.
 
         if (b.HP < 0){ //FIXME and b is not Character
-            writeStatus("Holy crap! "+b.n+" explodes in a huge explosion of blood! It's really gross!");
+            writeStatus("Holy crap! "+(b.n=="You" ? "explode" : "explodes")+" in a huge explosion of blood! It's really gross!");
             Character.EXP += ~~Math.sqrt(b.maxHP*b.DMG/9)+1;
             if (rnd(0,5) <2) { items.push(new Item(b.x, b.y)); writeStatus("The monster dropped an item.")}
             for (i in monsters) if (monsters[i] == b) monsters.splice(i, 1);
@@ -70,8 +72,10 @@ $(function(){
         tr=true, t=0,scr=[],l=localStorage;
         while (l["h"+t+"s"]) scr.push({"n":l["h"+t+"n"],"s":l["h"+t+"s"]}), t++; 
         scr.push({"n":"<b>"+(l["h"+t+"n"]=": You")+"</b>","s":l["h"+t+"s"]=curlevel*10+Character.EXP});
-        scr.sort(function(a,b){return (a[1]-0)-(b[1]-0)});
-        writegenericlist(scr,0);
+        scr.sort(function(a,b){return (b.s-0)-(a.s-0)});
+        var list = [];
+        for (var x=0;x<15;x++) list.push(scr[x].s +  scr[x].n);
+        renderList("Highscores", list);
     }
 
     /*
@@ -380,8 +384,8 @@ $(function(){
     var spells = [ {n:"Wrath",    effect:function(you, them){ effect("strength"); writeStatus("You feel vengeful!"); }, intreq:2, cost:1 },
                    {n:"Heal",     effect:function(you, them){ you.HP += 5; writeStatus("You feel better."); }       , intreq:2, cost:2 },
                    {n:"Teleport", effect:teleport                                  , intreq:3, cost:3 },
-                   {n:"Reveal Monsters", effect:function(y,t){Character.revealm=-15-2; queue.push({t:15,rel:0,s:"revealm",v:1,n:"Reveal"});} , intreq:2, cost:2 },
-                   {n:"Reveal Items", effect:function(y,t){Character.reveali=-15-2; queue.push({t:15,rel:0,s:"reveali",v:1,n:"Reveal"});} , intreq:2, cost:2 },
+                   {n:"Reveal Monsters", effect:function(y,t){Character.revealm=-15-2; queue.push({t:15,rel:0,s:"revealm",v:1,n:"Reveal"}); writeStatus("You feel more perceptive. See the minimap.")} , intreq:2, cost:2 },
+                   {n:"Reveal Items", effect:function(y,t){Character.reveali=-15-2; queue.push({t:15,rel:0,s:"reveali",v:1,n:"Reveal"});writeStatus("You sense the presence of objects. See the minimap.")} , intreq:2, cost:2 },
                    {n:"Enchant Weapon I", effect:function(y,t){enchantWeapon(1);} ,  intreq:4, cost:4 },
                    {n:"Enchant Weapon II", effect:function(y,t){enchantWeapon(2);} , intreq:6, cost:4 },
                    {n:"Enchant Weapon III", effect:function(y,t){enchantWeapon(3);} , intreq:8, cost:4 }
@@ -421,7 +425,6 @@ $(function(){
                         keys[x-0+49] = false;
                         
                         magicMode = false;
-                        writeStatus("You cast the spell successfully!");
                         return true; //action has been taken
                     }
                 }
@@ -439,7 +442,7 @@ $(function(){
         /*
          * This snippet is to find the next available target.
          */
-        if (keys[83]) {
+        if (keys[82]) {
             var di=1e6; //Infinity for all practical purposes
 
             var start = whichTarget;
@@ -521,18 +524,19 @@ $(function(){
         }
     }
     function renderSidebar(){
+        var a="<span>", A="</span>";
         s="";for (x in st)s += x + " x " + st[x] + B;
         $("#hlth").html(
-                "Level " + Character.LVL +" (" + Character.EXP + "/" + Character.NXT+")" +B+
-                "Dungeon Level: " + curlevel +B + 
-                "HP: " + Character.HP + "/" + Character.maxHP +B+
-                "MP: " + Character.MP + "/5"+B+ 
-                "Damage: " + (Character.DMG + (t=wieldingBow ? Character.DEX : Character.STR))+  "-" + (Character.DMX +t)+ B+  
-                "Strength: " +t  +B+
-                "Intelligence: " + Character.INT +B+ 
-                "Dexterity: " + Character.DEX +B+ 
-                "Armor: " + Character.DEF +B+ 
-                "$: " + Character.money +B+ 
+                a+"Level "+A + Character.LVL +" (" + Character.EXP + "/" + Character.NXT+")" +B+
+                a+"Dungeon Level: "+A + curlevel +B + 
+                a+"HP: "+A + Character.HP + "/" + Character.maxHP +B+
+                a+"MP: "+A + Character.MP + "/5"+B+ 
+                a+"Damage: "+A + (Character.DMG + (t=wieldingBow ? Character.DEX : Character.STR))+  "-" + (Character.DMX +t)+ B+  
+                a+"Strength: "+A +t  +B+
+                a+"Intelligence: "+A + Character.INT +B+ 
+                a+"Dexterity: "+A + Character.DEX +B+ 
+                a+"Armor: "+A + Character.DEF +B+ 
+                a+"$: "+A + Character.money +B+ 
                 s);
     }
     /*
@@ -615,7 +619,20 @@ $(function(){
 
 
         //Different game states to run through. Game states are basically just states where keypresses do different things.
-        if (statschange) {
+        if (deadMode) { 
+            if (keys[89]){
+                writeStatus("A mysterious force returns you to life!");
+                Character.HP = ~~(Character.maxHP / 2);
+                curlevel--;
+                generateLevel(++curlevel, 0);
+                writeBoard();
+                deadMode = false;
+            }
+            if (keys[78]){
+                end(0);
+                deadMode = false;
+            }
+        } else if (statschange) {
             checkStatsChange(); 
         }else if (showInventory){
             //top: 100px; left:300px; width:300px; height:400px;
@@ -633,7 +650,7 @@ $(function(){
             if (!magicMode) $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
 
             checkLevelUp();
-            if (keys[83] && !rangeMode) {
+            if (keys[82] && !rangeMode) {
                 rangeMode=true;
                 rangeAction();
                 //whichTarget=0;
@@ -641,7 +658,12 @@ $(function(){
 
             if (keys[77]) magicMode = true;
 
-            if (Character.HP<0) {writeStatus("You have died. :("); end(0);} //TODO would you like to continue anyway? mk.
+            if (Character.HP<0) {
+                writeStatus("You have died. :("); 
+                writeStatus("Would you like to continue? (Y)es (N)o");
+                Character.deaths++;
+                deadMode = true;
+            } //TODO would you like to continue anyway? mk.
 
             $("#c").html("Rogue");
 
@@ -661,8 +683,8 @@ $(function(){
             }
 
 
-            writeks({"QWE AD ZXC":" Move", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack"});
-            writeks({">":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" }, 30);
+            writeks({"QWE AD ZXC":" Move", "S":"leep (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack"});
+            writeks({">":" Go upstairs","<":" Go downstairs", "R":"ange","M":"ap" }, 30);
             //context.fillStyle = 'white';
             //context.fillText("miniRogue",50,50);
         }
@@ -813,6 +835,7 @@ $(function(){
                            "U" : ["ff", "55", "ff"],
                            ">" : ["66", "66", "33", 5],
                         "&lt;" : ["66", "66", "33", 5], //TODO Make up/down the right keys =) or v^
+                           "*" : ["66", "dd", "33", 25],
                            "I" : ["dd", "dd", "55", 4]
         };
     }
@@ -826,7 +849,14 @@ $(function(){
             t = (~~(Character.HP*16/Character.maxHP)).toString(16);
             if (t=="10") t = "f";
             t=t+t;
-            f(j,i,t,t,t,sz, 5);
+            var ctx = (Character.HP != Character.oldHP ? Character.HP : "");
+            var clv = (Character.LVL != Character.oldLV * 5) ? "Level up! (Press L)" : "";
+            Character.oldHP = Character.HP
+            if (Character.oldLV != Character.LVL * 5){
+                Character.oldLV++;
+                ctx = clv;
+            }
+            f(j,i,t,t,t,sz, 5, ctx+"");
         } else { 
             f(j, i, colorsdict[vis][type][0], colorsdict[vis][type][1], colorsdict[vis][type][2], sz, colorsdict[vis][type][3] || 3, (vis && !mini ? relText[i][j] : ""));
         }
@@ -974,7 +1004,7 @@ $(function(){
 
     var m = {//83:function(){writeStatus("You have " + Character.HP + "/" + Character.maxHP + " HP.<br> You have been playing for " + moves + " moves.")},
         71:pickupItem,
-        82:function(){ 
+        83:function(){ 
             writeStatus("You take a quick nap."); resting = true;
         },
         73:function(){writeStatus("You take a moment to examine your inventory. Luckily, all monsters freeze in place. ");showInventory = true; Inventory.display();},
@@ -1047,7 +1077,7 @@ $(function(){
                              "!" : ["Regeneration", "Poison", "Strength", "Intelligence","Dexterity"],
                              "?" : ["teleport", "money", "healing", "stabbing self", "experience", "worthlessness", "curse", "enchant I", "enchant II"]
     };
-    var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"};  //Unique
+    var tnarg = {stacks:false, count:1,x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg", N:function(){}};  //Unique
 
     function teleport(){
         var x,y;
@@ -1301,7 +1331,9 @@ $(function(){
         x : 5,
         y : 8,
         MP : 5,
-        HP : 24,
+        HP : 23,
+        oldHP : 23, //For updating purposes
+        oldLV : 1, //For updating purposes
         maxHP : 24,
         money : 0,
         DMG : 2, 
@@ -1314,6 +1346,7 @@ $(function(){
         DEX : 2,
         DEF : 1,
         LVL : 1,
+        deaths : 0,
         revealm : false, //Reveal monsters spell.
         reveali : false, //Reveal items spell.
         n : "You",
