@@ -4,6 +4,7 @@ $(function(){
     var keys=[],
         lastTicks=0,
         relText=[],
+        boardUpdate=false,
         context,
         text=[],
         vis=[],
@@ -24,7 +25,7 @@ $(function(){
             //lastTicks = ticks;
 
             t = e.which;
-            console.log(t);
+            //console.log(t);
             keys[t]=true;
             gameLoop();
         }
@@ -42,7 +43,7 @@ $(function(){
         b.follow=1;
         b.HP -= t=max(0,rnd(a.DMG, a.DMX+1)-b.DEF+(wieldingBow && a==Character ? a.DEX : a.STR)); 
         writeStatus(a.n + " hit" + (a.n[0]=="Y"?"":"s") +  " for " + t + " damage.");
-        if (a.POI && rnd(0,10)==0) {effect("poison"); writeStatus("You have been poisoned!")} 
+        if (a.POI && rnd(0,10)==0) {effect("Poison"); writeStatus("You have been poisoned!")} 
         
         //TODO you should be able to poison as well.
         //Easy to implement; just give yourself the POI flag.
@@ -225,7 +226,6 @@ $(function(){
          */
         var uniqueItems = [{name: "The Greatsword", typ:"w", cls:"[", spec: {"STR": 5, "DMG":10, "DMX":15}}]; 
         var uni = new Item(t.x+1, t.y+1, uniqueItems[0].cls, uniqueItems[0].spec, uniqueItems[0].name, uniqueItems[0].typ);
-        items.push(uni);
 
 
         //Create a unique monster on this level.
@@ -283,14 +283,19 @@ $(function(){
             items[i].N(); //Ensure that it has the correct name.
             if (intersect(Character, items[i])){
                  t = items[i].cls;
-                 if (t=="?" || t=="!") //TODO if I add rings necklaces etc, add them hear.
-                     pickupItem(undefined, true); 
+
                  if (items[i].cls == "$"){
                     items[i].use();
                     items.splice(i,1); //TODO: code duplication --sorta :: BAD (maybe have an "in inventory" flag?)
                     writeStatus("You have "+Character.money+"G.");
                     break;
-                 } else writeStatus(items[i].n + " rolls under your feet.");
+                 } else {
+                     if (t=="?" || t=="!") //TODO if I add rings necklaces etc, add them hear.
+                         pickupItem(undefined, true); 
+                     else 
+                         writeStatus(items[i].n + " rolls under your feet.");
+                 
+                 }
             }
         }
     }
@@ -303,7 +308,7 @@ $(function(){
 
     function checkStatsChange(){
         writegenericlist(0,0);
-        writeks({"D":"exterity","S":"trength","C":"onstitution"});
+        writeks({"D":"exterity","S":"trength","I":"ntelligence"});
         t = {68:"DEX",83:"STR",67:"INT"};
         $("#1F1").html("Gain a stat: (D)exterity (S)trength (I)ntelligence." );
         
@@ -386,10 +391,14 @@ $(function(){
     function magicAction(){
         writeks({"e":" List avaiable spells", "Enter":"Fire", "ESC" : " Cancel"});
 
-        if (keys[69]) { //List spells //TODO abstract as list 
+
+        if (keys[69]) { //List spells 
+            var list = [];
             for (t in spells) {
-                $("#"+t+"F0").html((t-0+1) + ": " + spells[t].intreq +" INT "+ spells[t].n+" ("+spells[t].cost + "MP)").css("color", spells[t].intreq > Character.INT ? "gray" : "black");
+                //TODO make color gray.
+                list.push((t-0+1) + ": " + spells[t].intreq +" INT "+ spells[t].n+" ("+spells[t].cost + "MP)"); //.css("color", spells[t].intreq > Character.INT ? "gray" : "black");
             }
+            renderList("Spells", list);
         }
 
         //49 == 1
@@ -449,6 +458,8 @@ $(function(){
             
             if (!found){
                 writeStatus("There are no monsters in range.");
+            } else {
+                boardUpdate = true;
             }
         }
 
@@ -492,7 +503,6 @@ $(function(){
         statusEffects(); 
 
         moves++;
-        if (!moves%REGENRATE && Character.HP != Character.maxHP) debugger;
 
         Character.HP += resting + (moves%REGENRATE==0 && Character.HP != Character.maxHP);
         if (pc == "#") {setxy(Character,oldPosition); writeStatus("You stupidly run into a rock.");} 
@@ -530,6 +540,8 @@ $(function(){
      *
      * Renders a minimap to screen. Awesome.
      *
+     * Unfortunately, this function is very slow, even in Chrome. 
+     *
      */
     function minimap(){
         var W = 20; //TODO Abstract
@@ -561,7 +573,6 @@ $(function(){
      * doMultiPickup()
      */
     function doMultiPickup(){
-        console.log("yes");
         if (keys[65]){
             while(pickupItem(0));
             pickupMode=false;
@@ -619,7 +630,7 @@ $(function(){
             doMultiPickup();
         }else {
 
-            $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
+            if (!magicMode) $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
 
             checkLevelUp();
             if (keys[83] && !rangeMode) {
@@ -636,25 +647,29 @@ $(function(){
 
             action = (rangeMode && rangeAction()) || (magicMode && magicAction()) || (!magicMode && !rangeMode && getKeys());
 
+            if ( !tr && (action || resting)) {
+
+                boardUpdate = true;
+                if (Character.revealm || Character.reveali)
+                    minimap();
+            }
+
+
             if (action || resting) { 
                 resting = !(action || Character.HP == Character.maxHP) 
                 takeTurn();
             }
 
-            if ( ( !tr && action) ) writeBoard(); 
 
             writeks({"QWE AD ZXC":" Move", "R":"est (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack"});
             writeks({">":" Go upstairs","<":" Go downstairs", "x":" Range","M":"ap" }, 30);
             //context.fillStyle = 'white';
             //context.fillText("miniRogue",50,50);
         }
-        if (keys[27]) writeBoard();  //27 is the ultimate "change stuff" key, anyway
+        if (keys[27]) boardUpdate = true;  //27 is the ultimate "change stuff" key, anyway
         t=255;
         while(t--) keys[t]=false;
 
-        if (showMap){
-            //minimap();
-        }
     }
 
     /*
@@ -671,6 +686,10 @@ $(function(){
         }
     }
 
+    function updateIfNecessary(){
+       if (boardUpdate) writeBoard(); 
+        boardUpdate=false;
+    }
     
     function initialize(){
         initColors(true);
@@ -697,13 +716,14 @@ $(function(){
         writeStatus("Some jerk buried the Amulet of Tnarg in this dungeon. It is your mission to get it!");
 
         //Get an estimate on how long writeBoard takes.
-        /*
-         * TODO: See if I even need this nemoar.
+        
+        // TODO: See if I even need this nemoar.
         var lTicks = (new Date()).getTime()
         for (var i=0;i<10;i++)
             writeBoard();
-        var time = ((new Date()).getTime() - lTicks)/10; */
-        waitTime = 50; //time;
+        var time = ((new Date()).getTime() - lTicks)/10; 
+
+        setInterval(updateIfNecessary, lTicks+10);
         writeBoard();
         //function(forcecls, forcespec)
 
@@ -799,16 +819,16 @@ $(function(){
     function writeTileGeneric(i, j, sz, type, vis, mini){
         vis = vis ? true : false;
         f = mini ? wTileMini : wTile;
-        if ("cjgr".indexOf(type) != -1) type = "M";
+        if ("crgjsS".indexOf(type) != -1) type = "M";
         if ("!?[$(|".indexOf(type) != -1) type = "I";
 
         if (type=="@" || isNumber(type)) { 
             t = (~~(Character.HP*16/Character.maxHP)).toString(16);
-            if (Character.HP == Character.maxHP) t = "FF";
+            if (type=="10") t = "F";
             t=t+t;
             f(j,i,t,t,t,sz, 5);
         } else { 
-            f(j, i, colorsdict[vis][type][0], colorsdict[vis][type][1], colorsdict[vis][type][2], sz, colorsdict[vis][type][3] || 3, vis ? relText[i][j] : "");
+            f(j, i, colorsdict[vis][type][0], colorsdict[vis][type][1], colorsdict[vis][type][2], sz, colorsdict[vis][type][3] || 3, (vis && !mini ? relText[i][j] : ""));
         }
         if (rangeMode && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
             f(j, i, "33", "33", "33", sz, 5, relText[i][j]);
@@ -852,6 +872,24 @@ $(function(){
                 }
                 relText[monsters[i].x - screenX][monsters[i].y - screenY] = s;
             }
+
+
+        var nomore = 0; //No overlapping text... because that is freaking annoying.
+        for (var i=0;i<sz*2;i++){
+            for (var j=0;j<i;j++){
+                //consider (j, sz-j)
+                nomore--;
+                if (relText[i-j][j] != ""){
+                    if (nomore > 0) {
+                        relText[i-j][j] = "";
+                    } else { 
+                        nomore = ~~(relText[i-j][j].length/7);
+                    }
+                }
+                
+            }
+            nomore = 0;
+        }
 
         text[Character.x - screenX][Character.y - screenY] = Character.rep();
 
@@ -913,7 +951,7 @@ $(function(){
             if (which != undefined) i = which;
             i = underfoot[i];
             Inventory.addItem(items[i]);
-            writeStatus("You pick up " + items[i].n + ".");
+            writeStatus("You pick up " + (items[i].stacks ? "a " : "") +  items[i].n + ".");
             items.splice(i, 1);
             return true;
         }
@@ -981,10 +1019,10 @@ $(function(){
         var ns = {t:15,rel:1,s:"STR",v:1,n:"+STR"};
         ns.n = t;
         
-        if(t[0]=="p")ns.s="HP", ns.rel=0, ns.v=-1;
-        if(t[0]=="r")ns.s="HP", ns.rel=0;
-        t[0]=="i"? ns.s="INT":0;
-        t[0]=="d"? ns.s="DEX":0;
+        if(t[0]=="P")ns.s="HP", ns.rel=0, ns.v=-1;
+        if(t[0]=="R")ns.s="HP", ns.rel=0;
+        t[0]=="I"? ns.s="INT":0;
+        t[0]=="D"? ns.s="DEX":0;
 
         Character[ns.s] += ns.v; //First use for relative buffs (like regen) and ONLY use for nonrelative buffs (+1 STR etc)
         queue.push(ns);
@@ -1004,7 +1042,7 @@ $(function(){
                              "(" : ["bow", "longbow"] 
     };
     var finaldescriptors = {// "[" : ["Truth", "bone", "cats", "Power", "purity", "steel", "bronze", "iron", "Mythril", "Light", "kittenfur"],
-                             "!" : ["regeneration", "poison", "strength", "intelligence","dexterity"],
+                             "!" : ["Regeneration", "Poison", "Strength", "Intelligence","Dexterity"],
                              "?" : ["teleport", "money", "healing", "stabbing self", "experience", "worthlessness", "curse", "enchant I", "enchant II"]
     };
     var tnarg = {x:-1,y:-1,ists:true,cls:"*",n:"The Talisman of Tnarg"};  //Unique
@@ -1038,13 +1076,13 @@ $(function(){
             if(this.typ == "Arrows" || this.cls == "$") return "";
             var tag="(";
             if (this.typ == "w"){
-                tag += this.spec["DMG"]+"-"+this.spec["DMX"] + ",";
+                tag += this.spec["DMG"]+"-"+this.spec["DMX"] + ", ";
             }
             for (s in this.spec){
                 if (s != "DMG" && s != "DMX" && this.spec[s] > 0)
-                    tag += " +"+this.spec[s] +" " + s + ",";
+                    tag += "+"+this.spec[s] +" " + s + ", ";
             }
-            return tag.substring(0,tag.length-1) + ")"; //trim last comma
+            return tag.substring(0,tag.length-2) + ")"; //trim last comma
         }
         this.n = "";
         this.typ="";
@@ -1144,6 +1182,7 @@ $(function(){
                     } else if (typ[0] == "w"){
                         writeStatus("Your nose itches.");
                     }
+                    boardUpdate = true;
                 } else {
                     if (equipped) { 
                         for (x in s) Character[x] += s[x] != null ? s[x] : 0;
@@ -1326,6 +1365,7 @@ $(function(){
         }
         this.useItem = function(){
             var a=this.items[this.sel];
+            if (!a) return; 
             if (!a.equipped){
                 //about to equip
                 if (wielding[a.typ]) {  //TODO. I should make a flag that is individual to each wielded item...
