@@ -593,8 +593,11 @@ $(function(){
     }
     function renderList(title, contents){
         $("#board > span").html("").css({"background-color":"","color":""});
+        $("#board").show();
+        /*
         context.fillStyle = "#FFFFFF"
         context.fillRect(50,50,300,contents.length * 40);
+        */
         for (x in contents){
             $("#"+x+"F0").html(contents[x]);
         }
@@ -647,7 +650,7 @@ $(function(){
             doMultiPickup();
         }else {
 
-            if (!magicMode) $("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
+            if (!magicMode) $("#board").hide(); //$("#board > span").html("").css({"background-color":"","color":""}); //TODO abstract to list thingarydgy
 
             checkLevelUp();
             if (keys[82] && !rangeMode) {
@@ -683,8 +686,8 @@ $(function(){
             }
 
 
-            writeks({"QWE AD ZXC":" Move", "S":"leep (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack"});
-            writeks({">":" Go upstairs","<":" Go downstairs", "R":"ange","M":"ap" }, 30);
+            writeks({"QWE AD ZXC":" Move", "S":"leep (heal)","I":"nventory","G":"rab item", "Walk into a monster":"Attack",
+                    "<br>>":" Go upstairs","<":" Go downstairs", "R":"ange","M":"ap" }, 30);
             //context.fillStyle = 'white';
             //context.fillText("miniRogue",50,50);
         }
@@ -1060,13 +1063,14 @@ $(function(){
         queue.push(ns);
     }
 
-    var descriptors = [ [30,  "", {}],
-                        [60,  " decent",  {"DMG":1, "DMX":2}],
+    var descriptors = [ [70,  "", {}],
+                        [80,  " decent",  {"DMG":1, "DMX":2}],
                         [90,  " ancient", {"DMG":2, "DMX":4}],
                         [100, " glowing", {"STR":2}]
                       ] ; 
                          
-    var finalWDescs = [ [50,  "", {}],
+    var finalWDescs = [ [80,  "", {}],
+                        [90, " of dexterity", {"DEX":1}],
                         [100, " of intelligence", {"INT":1}]
                       ];
 
@@ -1123,7 +1127,7 @@ $(function(){
         this.getDescriptor = function(desc){
             var r = ~~(Math.random()*100); //TODO: Let level modify this.
             for (x in desc){
-                if (desc[x][0] > r){ //prob
+                if (desc[x][0] >= r){ //prob
                     for (s in desc[x][2]){ //specs
                         this.spec[s] = (this.spec[s] ? this.spec[s]:0) + desc[x][2][s];
                     }
@@ -1147,7 +1151,7 @@ $(function(){
                         stacks = false;
                         d = relem(typedescriptions[t]); 
                         typ="w";
-                        spec["DMX"] = (spec["DMG"]= rnd(1*curlevel, 2*curlevel)) + rnd(1,3+curlevel*2); //Bows are weaker than swords for obvious reasons
+                        spec["DMX"] = (spec["DMG"]= 2*curlevel) + 2*curlevel; //Bows are weaker than swords for obvious reasons
                         n ="A"+  getDescriptor(descriptors) + " " + d + getDescriptor(finalWDescs);
                     }
                     if (t == "|"){ //Bolts/arrows for bow.
@@ -1164,7 +1168,7 @@ $(function(){
                         d2=rnd(0,typedescriptions["["].length-1);
                         d = typedescriptions[t][d2];
                         if (d2<8){ 
-                            spec["DMX"] = (spec["DMG"]= rnd(2*curlevel, 3*curlevel)) + rnd(1,3+curlevel*2);
+                            spec["DMX"] = (spec["DMG"]= 3*curlevel) + curlevel*2;
                             spec["STR"] = max(0,rnd(0,100)-95);
                             typ="w";
                         } else { 
