@@ -1,5 +1,10 @@
 //Typekit.load();
+//
+
+document.write("<style type='text/css'>html{background:#090909;color:#ccc;} #l{width:900px;margin:0 auto;}#s{width:190px;margin-left:10px;float:right} #s span{font-size:.8125em;color:#666;text-transform:uppercase;} .L2{width:700px;float:left;height:500px;position:relative} #board{ width:500px;position:absolute;top:100px;left:100px;background:rgba(0,0,0,.85);padding:1em;} h1{text-shadow: #444 1px 1px 0px, #888 2px 2px 0px, #444 3px 3px 0px;font: 4em 'Helvetica Neue', sans-serif;letter-spacing: -5px;color:#c99} h1 #c{color:#ccc} canvas { position:absolute;top:0;left:0;visibility: hidden;} #status{clear:both;} </style>" + '<div id="l"><h1 class="head">mini<span id="c">Rogue</span></h1><div id="s"><div id="hlth"></div><br/><span style=color:red><b>Keys:</b></span><br/><div id="ks"></div></div><div class="L2"><canvas id="canvas0" width="700" height="500"></canvas><canvas id="canvas1" width="700" height="500"></canvas><div id="board"></div></div><div id="status"><br/><br/><br/><br/></div></div>');
+
 $(function(){
+
 
     var keys=[],
         lastTicks=0,
@@ -29,8 +34,6 @@ $(function(){
             //lastTicks = ticks;
 
             t = e.which;
-            console.log(t);
-            //console.log(t);
             keys[t]=true;
             gameLoop();
         }
@@ -147,7 +150,7 @@ $(function(){
         curlevel=l;
         items=[], monsters=[];
         size = buff*2+25* rsp(2,l-1),roomn = size/10 //rsp(2*size/40, 6*size/40); //TODO make roomn non-random
-        var numMonsters = ~~(roomn * 2.6);
+        var numMonsters = ~~(roomn * 2.2);
 
         map=[];a=b=0;while(a++<size){map.push([]);while(b++<size)map[a-1].push("#");b=0}
         //map = rng(size).map(function(){return rng(size).map(fgen("#"))}); 
@@ -381,7 +384,7 @@ $(function(){
     //TODO BALANCE: Heal is pretty atrocious in later levels. Given that MP should scale... hur...
     //TODO: writeStatus on all of them.
     var spells = [ {n:"Wrath",    effect:function(you, them){ effect("strength"); writeStatus("You feel vengeful!"); }, intreq:2, cost:1 },
-                   {n:"Heal",     effect:function(you, them){ you.HP += 5; writeStatus("You feel better."); }       , intreq:2, cost:2 },
+                   {n:"Heal",     effect:function(you, them){ you.HP = min(you.HP+ 5, you.maxHP); writeStatus("You feel better."); }       , intreq:2, cost:2 },
                    {n:"Teleport", effect:teleport                                  , intreq:3, cost:3 },
                    {n:"Reveal Monsters", effect:function(y,t){Character.revealm=-15-2; queue.push({t:15,rel:0,s:"revealm",v:1,n:"Reveal"}); writeStatus("You feel more perceptive. See the minimap.")} , intreq:4, cost:2 },
                    {n:"Reveal Items", effect:function(y,t){Character.reveali=-15-2; queue.push({t:15,rel:0,s:"reveali",v:1,n:"Reveal"});writeStatus("You sense the presence of objects. See the minimap.")} , intreq:2, cost:2 },
@@ -398,7 +401,9 @@ $(function(){
         var list = [];
         for (t in spells) {
             //TODO make color gray.
-            list.push((t-0+1) + ": " + spells[t].intreq +" INT "+ spells[t].n+" ("+spells[t].cost + "MP)"); //.css("color", spells[t].intreq > Character.INT ? "gray" : "black");
+            var s = (t-0+1) + ": " +spells[t].n+" ("+spells[t].cost + "MP) ";
+            if (spells[t].intreq > Character.INT)s = "<span style='color:gray'>"+s+" - "+spells[t].intreq+" INT required</span>";
+            list.push(s); //.css("color", spells[t].intreq > Character.INT ? "gray" : "black");
         }
         renderList("Spells", list);
 
@@ -458,6 +463,8 @@ $(function(){
             
             if (!found){
                 writeStatus("There are no monsters in range.");
+                rangeMode=false;
+                return;
             } else {
                 boardUpdate = true;
             }
@@ -543,19 +550,23 @@ $(function(){
         var W = 20; //TODO Abstract
         for (var i=max(Character.y-20,0);i<min(Character.y+20, size);i++){
             for (var j=max(Character.x-20,0);j<min(Character.x+20, size);j++){
-                writeTileGeneric(j-screenX+220, i-screenY+300, 2, map[j][i], seen[j][i], true);
+                writeTileGeneric(j-screenX+220, i-screenY+300, 2, map[j][i], seen[j][i], true, true);
             }
         }
 
         for (i in monsters){
             if (Character.revealm){
-                writeTileGeneric(monsters[i].x-screenX+6*W, monsters[i].y-screenY+7*W, 2, "j", seen[j][i]);
+                writeTileGeneric(monsters[i].x-screenX+220, monsters[i].y-screenY+300, 2, "j", true, true);
             }
         }
 
         for (i in items){
             if (Character.reveali){
-                writeTileGeneric(items[i].x-screenX+6*W, items[i].y-screenY+7*W, 2, "?", seen[j][i]);
+                try { 
+                writeTileGeneric(items[i].x-screenX+220, items[i].y-screenY+300, 2, "?", true, true);
+                } catch(e) {
+                    debugger;
+                }
             }
         }
         wTile(7*W+Character.x - screenX,6*W+ Character.y - screenY, "ff", "ff", "ff", 2);
@@ -719,8 +730,6 @@ $(function(){
             if ( !tr && (action || resting)) {
 
                 boardUpdate = true;
-                if (Character.revealm || Character.reveali)
-                    minimap();
             }
 
 
@@ -756,11 +765,16 @@ $(function(){
     }
 
     function updateIfNecessary(){
-       if (boardUpdate) writeBoard(); 
+       if (boardUpdate){ 
+            writeBoard(); 
+            //if (Character.revealm || Character.reveali)
+                minimap();
+       }
         boardUpdate=false;
     }
     
     function initialize(){
+
         initColors(true);
         initColors(false);
 
@@ -879,7 +893,7 @@ $(function(){
                            "#" : ["66", "66", "66", 18],
                       "&nbsp;" : ["11", "11", "11"],
                            "M" : ["ff", "55", "55", 8],  //TODO: in the future, could just scan monster color straight off monster object.
-                           "U" : ["ff", "55", "ff"],
+                           "U" : ["ff", "55", "ff", 8],
                            ">" : ["66", "66", "33", 18],
                         "&lt;" : ["44", "44", "22", 1], //TODO Make up/down the right keys =) or v^
                            "*" : ["66", "dd", "33", 25],
@@ -908,7 +922,7 @@ $(function(){
             f(j, i, colorsdict[vis][type][0], colorsdict[vis][type][1], colorsdict[vis][type][2], sz, colorsdict[vis][type][3] || 5, (vis && !mini ? relText[i][j] : ""));
         }
         if (rangeMode && monsters[whichTarget].x - screenX == i && monsters[whichTarget].y-screenY == j)
-            f(j, i, "33", "33", "33", sz, 5, relText[i][j]);
+            f(j, i, "33", "33", "33", sz, 8, relText[i][j]);
 
         if (mini && !vis)
             f(j,i,"00","00","00",sz);
@@ -1058,13 +1072,13 @@ $(function(){
         76:function(){statschange = statpoints;},
         77:function(){showMap = !showMap;},
         //87:function(){writeStatus("Nice try. Too bad life isn't that easy.");},
-        190:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no staircase here.");} },
+        190:function(){if (pc == "&lt;") { writeStatus("You descend the staircase into darker depths..."); generateLevel(++curlevel, 0);} else {writeStatus("There's no downstair here.");} },
         188:function(){
             if (pc == ">") { 
                 writeStatus("You ascend the staircase to safer ground."); 
                 generateLevel(--curlevel,1); 
             } else {
-                writeStatus("There's no staircase here.");
+                writeStatus("There's no upstair here.");
             } 
         }
     };
@@ -1146,13 +1160,13 @@ $(function(){
         this.spec = {}; 
         this.N=function(known){
             if(this.cls=="?"){
-                this.n = "Scroll of " + (this.typ in wielding || known ? this.typ : "mystery");
+                this.n = "a scroll of " + (this.typ in wielding || known ? this.typ : "mystery");
             } else { 
-                this.n= this.cls=="!"? "Potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
+                this.n= this.cls=="!"? "a potion of " + (this.typ in wielding || known ? this.typ : "mystery" ) : this.n;
             }
         } 
         this.getTag = function(){
-            if(this.typ == "Arrows" || this.cls == "$") return "";
+            if(this.typ == "arrows" || this.cls == "$") return "";
             var tag="(";
             if (this.typ == "w"){
                 tag += this.spec["DMG"]+"-"+this.spec["DMX"] + ", ";
@@ -1200,7 +1214,7 @@ $(function(){
                     if (t == "|"){ //Bolts/arrows for bow.
                         stacks = true;
                         count = rnd(20,25);
-                        typ = n = "Arrows"
+                        typ = n = "arrows"
                     }
 
                     var d2;
@@ -1243,7 +1257,6 @@ $(function(){
                     //
 
                     //"?" : ["teleport", "money", "healing", "stabbing self", "experience", "worthlessness", "curse", "enchant I", "enchant II"]
-                    typ;
                     if (typ[0]=="t"){
                         teleport();
                     } else if (typ[0] == "m"){
@@ -1373,6 +1386,7 @@ $(function(){
                         }
                     }
                 }
+
             }
         }; 
     }; 
@@ -1511,6 +1525,7 @@ $(function(){
      *
      */
     function ssXY(){
+        console.log(Character.x, Character.y);
         screenX = Character.x - sz/2;
         screenY = Character.y - sz/2;
     }
